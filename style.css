@@ -71,39 +71,165 @@ canvas { display: block; width: 100%; height: 100%; }
 .speed-btn:hover, .icon-btn:hover { background: rgba(255,255,255,0.2); }
 @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
 
-/* TIMELINE CONTAINER */
-.timeline-container { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); width: 80%; background: rgba(15, 23, 42, 0.95); padding: 5px 15px 5px 15px; border-radius: 16px; display: flex; align-items: center; gap: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); z-index: 10; transition: opacity 0.3s; }
-.play-btn { background: none; border: 1px solid #475569; border-radius: 50%; color: white; font-size: 18px; cursor: pointer; width: 40px; height: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+/* --- TIMELINE CONTAINER --- */
+.timeline-container { 
+    position: absolute; 
+    bottom: 30px; 
+    left: 50%; 
+    transform: translateX(-50%); 
+    width: 80%; 
+    height: 60px; /* Layout height */
+    z-index: 10; 
+    display: flex;
+    align-items: flex-end; /* Aligns content to bottom */
+    padding: 0 10px;
+}
+
+/* THE VISUAL BACKGROUND BOX */
+.timeline-container::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 50px; /* Slim visual height */
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid #334155;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    z-index: -1; 
+}
+
+/* PLAY BUTTON */
+.play-btn { 
+    background: none; 
+    border: 1px solid #475569; 
+    border-radius: 50%; 
+    color: white; 
+    font-size: 16px; 
+    cursor: pointer; 
+    width: 32px; 
+    height: 32px; 
+    flex-shrink: 0; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    transition: 0.2s; 
+    /* Centers the button in the 50px visual box */
+    margin-bottom: 9px; 
+    margin-right: 5px;
+    position: relative;
+    z-index: 20;
+}
 .play-btn:hover { border-color: var(--accent); background: rgba(255,255,255,0.1); }
 
 /* --- CUSTOM TIMELINE SCROLL --- */
 .timeline-scroll-area { 
-    flex-grow: 1; overflow-x: auto; overflow-y: hidden; 
-    padding: 60px 30px 15px 30px; 
+    flex-grow: 1; 
+    overflow-x: auto; 
+    overflow-y: hidden; 
+    
+    /* PADDING ADJUSTMENTS: */
+    /* Top: 40px -> Space for the 'Start' tooltip so it pops up freely */
+    /* Bottom: 23px -> Lifts the track to align center with Play Button */
+    padding: 40px 0 23px 0; 
+    
     scrollbar-width: thin; 
-    scrollbar-color: #64748b #1e293b; 
+    scrollbar-color: #64748b transparent; 
+    position: relative;
 }
-.timeline-scroll-area::-webkit-scrollbar { height: 12px; }
-.timeline-scroll-area::-webkit-scrollbar-track { background: #0f172a; border-radius: 6px; margin: 0 20px; }
-.timeline-scroll-area::-webkit-scrollbar-thumb { background: #64748b; border-radius: 6px; border: 3px solid #0f172a; }
-.timeline-scroll-area::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-.timeline-content-wrapper { position: relative; height: 10px; min-width: 100%; display: flex; align-items: center; }
+/* SCROLLBAR STYLING */
+.timeline-scroll-area::-webkit-scrollbar { 
+    height: 6px; 
+}
+.timeline-scroll-area::-webkit-scrollbar-track { 
+    background: rgba(0,0,0,0.2); 
+    border-radius: 10px; 
+    /* Indents the track so it looks like a pill */
+    margin: 0 50px; 
+}
+.timeline-scroll-area::-webkit-scrollbar-thumb { 
+    background: #64748b; 
+    border-radius: 10px; 
+    border: 1px solid rgba(255,255,255,0.1);
+}
+.timeline-scroll-area::-webkit-scrollbar-thumb:hover { 
+    background: #94a3b8; 
+}
+
+.timeline-content-wrapper { 
+    position: relative; 
+    height: 4px; 
+    min-width: 100%; 
+    display: flex; 
+    align-items: center; 
+}
 
 /* TRACK */
-.timeline-track { min-width: 100%; height: 6px; background: #334155; border-radius: 3px; position: relative; cursor: pointer; }
-.timeline-buffer { height: 100%; background: rgba(255, 255, 255, 0.2); border-radius: 3px; position: absolute; left: 0; top: 0; z-index: 1; }
-.timeline-fill { height: 100%; background: var(--accent); border-radius: 3px; position: absolute; left: 0; top: 0; z-index: 2; }
-.timeline-fill::after { content: ''; position: absolute; right: -6px; top: 50%; transform: translateY(-50%); width: 12px; height: 12px; background: white; border-radius: 50%; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
+.timeline-track { 
+    min-width: 100%; 
+    height: 4px; 
+    background: #334155; 
+    border-radius: 2px; 
+    position: relative; 
+    cursor: pointer; 
+    
+    /* CRITICAL FIX: Large margins (50px) ensure the first/last labels 
+       have enough room to center without being cut off by the scroll area */
+    margin: 0 50px; 
+}
+
+.timeline-buffer { height: 100%; background: rgba(255, 255, 255, 0.15); border-radius: 2px; position: absolute; left: 0; top: 0; z-index: 1; }
+.timeline-fill { height: 100%; background: var(--accent); border-radius: 2px; position: absolute; left: 0; top: 0; z-index: 2; }
+.timeline-fill::after { 
+    content: ''; 
+    position: absolute; 
+    right: -6px; 
+    top: 50%; 
+    transform: translateY(-50%); 
+    width: 12px; 
+    height: 12px; 
+    background: white; 
+    border-radius: 50%; 
+    box-shadow: 0 0 5px rgba(0,0,0,0.5); 
+}
 
 /* MARKERS */
-.t-marker { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 12px; height: 12px; background: var(--warning); border: 2px solid white; border-radius: 50%; cursor: help; z-index: 5; transition: transform 0.2s; }
-.t-marker:hover { transform: translate(-50%, -50%) scale(1.5); z-index: 10; }
+.t-marker { 
+    position: absolute; 
+    top: 50%; 
+    transform: translate(-50%, -50%); 
+    width: 10px; 
+    height: 10px; 
+    background: var(--warning); 
+    border: 2px solid white; 
+    border-radius: 50%; 
+    cursor: help; 
+    z-index: 5; 
+    transition: transform 0.2s; 
+}
+.t-marker:hover { transform: translate(-50%, -50%) scale(1.3); z-index: 10; }
+
+/* TOOLTIPS (Labels) */
 .t-marker::before { 
-    content: attr(data-label); position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
-    background: rgba(0,0,0,0.9); color: white; padding: 6px 10px; border-radius: 4px; font-size: 11px; 
-    white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; border: 1px solid #475569; 
+    content: attr(data-label); 
+    position: absolute; 
+    bottom: 18px; 
+    left: 50%; 
+    transform: translateX(-50%); 
+    background: rgba(0,0,0,0.9); 
+    color: white; 
+    padding: 4px 8px; 
+    border-radius: 4px; 
+    font-size: 11px; 
+    white-space: nowrap; 
+    opacity: 0; 
+    pointer-events: none; 
+    transition: opacity 0.2s; 
+    border: 1px solid #475569; 
     box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+    z-index: 20;
 }
 .t-marker:hover::before { opacity: 1; }
 
