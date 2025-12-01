@@ -3,33 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EcoSim - Final Master</title>
+    <title>EcoSim - Modern UI</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <!-- HAMBURGER BUTTON -->
     <button id="menu-toggle" class="menu-btn">☰</button>
 
-    <!-- SIDEBAR MENU -->
     <aside id="sidebar" class="sidebar">
         
-        <!-- HEADER (Z-Index High: Clickable during Replay) -->
         <div class="sidebar-header">
             <h2>ECO-CONTROL</h2>
             <button id="close-menu" class="close-btn">×</button>
         </div>
 
-        <!-- TABS -->
         <div class="tabs">
-            <button class="tab-btn active" onclick="ui.switchTab('environment')">Env</button>
+            <button class="tab-btn active" onclick="ui.switchTab('environment')">Environment</button>
             <button class="tab-btn" onclick="ui.switchTab('species')">Species</button>
         </div>
 
-        <!-- MAIN CONTENT WRAPPER -->
         <div class="sidebar-body">
             
-            <!-- LOCK OVERLAY (Covers only this middle section) -->
             <div id="sidebar-lock" class="sidebar-lock hidden">
                 <div class="lock-msg">
                     <span style="font-size: 30px;">🔒</span><br>
@@ -38,7 +32,6 @@
                 </div>
             </div>
 
-            <!-- TAB 1: ENVIRONMENT -->
             <div id="tab-environment" class="tab-content active-content">
                 <div class="control-group">
                     <label>Temperature <span id="val-temp">25°C</span></label>
@@ -49,14 +42,13 @@
                     <input type="range" id="slider-pol" min="0" max="100" value="0">
                 </div>
                 <hr class="divider">
-                <label>Visualization Mode</label>
+                <label style="font-size:12px; color:#94a3b8; font-weight:600; margin-bottom:10px; display:block;">VISUALIZATION</label>
                 <div class="view-toggles">
                     <button class="btn-sm active" id="view-std" onclick="sim.toggleView('standard')">Standard</button>
                     <button class="btn-sm" id="view-heat" onclick="sim.toggleView('heatmap')">Heatmap</button>
                 </div>
             </div>
 
-            <!-- TAB 2: SPECIES -->
             <div id="tab-species" class="tab-content">
                 <p class="hint">Click or Drag to spawn</p>
                 
@@ -82,13 +74,11 @@
             </div>
         </div>
 
-        <!-- FOOTER (Z-Index High: Clickable during Replay) -->
         <div class="sidebar-footer">
             <button class="btn-reset" onclick="location.reload()">↺ RESET SIMULATION</button>
         </div>
     </aside>
 
-    <!-- MAIN VIEWPORT -->
     <main class="viewport">
         <div id="toast-container"></div>
 
@@ -106,7 +96,6 @@
 
         <canvas id="simCanvas"></canvas>
 
-        <!-- TIMELINE CONTAINER -->
         <div id="timeline-container" class="timeline-container">
             <button id="btn-play" class="play-btn" onclick="sim.togglePlay()">⏸</button>
             
