@@ -3,46 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EcoSim - Final Polish</title>
+    <title>EcoSim - Final Master</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+    <!-- HAMBURGER BUTTON -->
     <button id="menu-toggle" class="menu-btn">☰</button>
 
+    <!-- SIDEBAR MENU -->
     <aside id="sidebar" class="sidebar">
         
-        <div id="sidebar-lock" class="sidebar-lock hidden">
-            <div class="lock-msg">
-                <span style="font-size: 30px;">🔒</span><br>
-                <strong>REPLAYING</strong><br>
-                <small>Go Live to Edit</small>
-            </div>
-        </div>
-
+        <!-- HEADER (Z-Index High: Clickable during Replay) -->
         <div class="sidebar-header">
             <h2>ECO-CONTROL</h2>
             <button id="close-menu" class="close-btn">×</button>
         </div>
 
+        <!-- TABS -->
         <div class="tabs">
-            <button class="tab-btn active" onclick="ui.switchTab('scenarios')">Scenarios</button>
-            <button class="tab-btn" onclick="ui.switchTab('environment')">Env</button>
+            <button class="tab-btn active" onclick="ui.switchTab('environment')">Env</button>
             <button class="tab-btn" onclick="ui.switchTab('species')">Species</button>
         </div>
 
-        <div class="sidebar-content">
+        <!-- MAIN CONTENT WRAPPER -->
+        <div class="sidebar-body">
             
-            <div id="tab-scenarios" class="tab-content active-content">
-                <p class="hint">Load a preset configuration</p>
-                <button class="btn btn-outline" onclick="sim.loadPreset('healthy')">🌿 Healthy Reef</button>
-                <button class="btn btn-outline" onclick="sim.loadPreset('threatened')">⚠️ Threatened Reef</button>
-                <button class="btn btn-outline" onclick="sim.loadPreset('recovery')">🚑 Recovery Assist</button>
-                <hr class="divider">
-                <button class="btn btn-save" onclick="ui.savePreset()">💾 Save Current State</button>
+            <!-- LOCK OVERLAY (Covers only this middle section) -->
+            <div id="sidebar-lock" class="sidebar-lock hidden">
+                <div class="lock-msg">
+                    <span style="font-size: 30px;">🔒</span><br>
+                    <strong>REPLAYING</strong><br>
+                    <small>Go Live to Edit</small>
+                </div>
             </div>
 
-            <div id="tab-environment" class="tab-content">
+            <!-- TAB 1: ENVIRONMENT -->
+            <div id="tab-environment" class="tab-content active-content">
                 <div class="control-group">
                     <label>Temperature <span id="val-temp">25°C</span></label>
                     <input type="range" id="slider-temp" min="15" max="35" value="25">
@@ -59,6 +56,7 @@
                 </div>
             </div>
 
+            <!-- TAB 2: SPECIES -->
             <div id="tab-species" class="tab-content">
                 <p class="hint">Click or Drag to spawn</p>
                 
@@ -74,21 +72,23 @@
                     <span class="icon">🪸</span> <span>Coral</span>
                 </div>
 
-                <div class="draggable-item" draggable="true" ondragstart="ui.drag(event, 'food')" onclick="ui.clickSpawn('food')">
-                    <span class="icon">🦐</span> <span>Food</span>
+                <div class="draggable-item" draggable="true" ondragstart="ui.drag(event, 'shrimp')" onclick="ui.clickSpawn('shrimp')">
+                    <span class="icon">🦐</span> <span>Shrimp</span>
                 </div>
                 
-                <div class="draggable-item" draggable="true" ondragstart="ui.drag(event, 'oil')" onclick="ui.clickSpawn('oil')">
-                    <span class="icon">🛢️</span> <span>Pollutant</span>
+                <div class="draggable-item" draggable="true" ondragstart="ui.drag(event, 'algae')" onclick="ui.clickSpawn('algae')">
+                    <span class="icon">🌿</span> <span>Algae</span>
                 </div>
             </div>
         </div>
 
+        <!-- FOOTER (Z-Index High: Clickable during Replay) -->
         <div class="sidebar-footer">
             <button class="btn-reset" onclick="location.reload()">↺ RESET SIMULATION</button>
         </div>
     </aside>
 
+    <!-- MAIN VIEWPORT -->
     <main class="viewport">
         <div id="toast-container"></div>
 
@@ -99,18 +99,20 @@
 
         <div class="top-bar">
             <div class="compass">NORTH ⬆</div>
-            <span id="speed-indicator">1x Speed</span>
+            <button id="ui-btn" class="icon-btn" onclick="ui.toggleUI()" title="Toggle UI">👁️</button>
+            <button id="speed-btn" class="speed-btn" onclick="sim.toggleSpeed()">1x Speed</button>
             <button id="btn-go-live" class="live-btn hidden" onclick="sim.goLive()">🔴 GO LIVE</button>
         </div>
 
         <canvas id="simCanvas"></canvas>
 
-        <div class="timeline-container">
+        <!-- TIMELINE CONTAINER -->
+        <div id="timeline-container" class="timeline-container">
             <button id="btn-play" class="play-btn" onclick="sim.togglePlay()">⏸</button>
             
             <div id="timeline-scroll-area" class="timeline-scroll-area">
                 <div class="timeline-content-wrapper">
-                    <div id="timeline-track" class="timeline-track" onclick="sim.scrub(event)">
+                    <div id="timeline-track" class="timeline-track">
                         <div id="timeline-buffer" class="timeline-buffer"></div>
                         <div id="timeline-fill" class="timeline-fill"></div>
                         <div id="timeline-markers"></div>

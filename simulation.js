@@ -3,18 +3,33 @@ const ui = {
     sidebar: document.getElementById('sidebar'),
     sidebarLock: document.getElementById('sidebar-lock'),
     tooltip: document.getElementById('tooltip'),
+    selectedMode: false,
+    uiVisible: true,
     
     init: () => {
         document.getElementById('menu-toggle').onclick = () => ui.sidebar.classList.add('open');
         document.getElementById('close-menu').onclick = () => ui.sidebar.classList.remove('open');
     },
 
+    toggleUI: () => {
+        ui.uiVisible = !ui.uiVisible;
+        const els = [document.getElementById('sidebar'), document.getElementById('menu-toggle'), document.getElementById('timeline-container')];
+        els.forEach(el => {
+            if(el) {
+                if(ui.uiVisible) el.classList.remove('ui-hidden');
+                else { el.classList.add('ui-hidden'); el.classList.remove('open'); }
+            }
+        });
+    },
+
     switchTab: (tabName) => {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active-content'));
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
         document.getElementById(`tab-${tabName}`).classList.add('active-content');
-        const btnIndex = tabName === 'scenarios' ? 0 : tabName === 'environment' ? 1 : 2;
-        document.querySelectorAll('.tab-btn')[btnIndex].classList.add('active');
+        const btnIndex = tabName === 'environment' ? 0 : 1; 
+        if(document.querySelectorAll('.tab-btn')[btnIndex]) {
+            document.querySelectorAll('.tab-btn')[btnIndex].classList.add('active');
+        }
     },
 
     showToast: (msg, type = 'info') => {
@@ -39,16 +54,17 @@ const ui = {
         ui.tooltip.style.top = y + 'px';
         ui.tooltip.classList.remove('hidden');
         document.getElementById('tt-type').innerText = agent.type.toUpperCase();
+        
         let status = `Health: ${Math.round(agent.health)}%`;
         if(agent.type === 'oil') status = "Pollutant (Toxic)";
-        if(agent.type === 'food') status = "Edible";
+        // Shrimp now show health correctly
         document.getElementById('tt-health').innerText = status;
     },
     hideTooltip: () => { ui.tooltip.classList.add('hidden'); },
 
     // TIMELINE MARKERS
     addMarkerDOM: (label) => {
-        const track = document.getElementById('timeline-markers');
+        const track = document.getElementById('timeline-track');
         const marker = document.createElement('div');
         marker.className = 't-marker';
         marker.setAttribute('data-label', label);
@@ -57,7 +73,9 @@ const ui = {
     },
     
     clearTimeline: () => {
-        document.getElementById('timeline-markers').innerHTML = '';
+        const track = document.getElementById('timeline-track');
+        const markers = track.querySelectorAll('.t-marker');
+        markers.forEach(m => m.remove());
     },
 
     setReviewMode: (isReviewing) => {
@@ -82,22 +100,30 @@ class Agent {
         this.vy = (Math.random() - 0.5) * 2;
         this.dead = false;
         
-        // Define size first for bounds checking
+        // Coral AI
+        this.coralTimer = 0;    
+        this.coralCooldown = 0; 
+        this.lastCoral = null; 
+        this.currentCoral = null; 
+        
         if(type === 'fish') { this.icon = '🐟'; this.size = 24; this.speed = 2; this.vision = 150; }
         else if (type === 'shark') { this.icon = '🦈'; this.size = 40; this.speed = 3.5; this.vision = 250; }
-        else if (type === 'food') { this.icon = '🦐'; this.size = 15; this.speed = 0.5; this.vx *= 0.2; this.vy *= 0.2; }
+        else if (type === 'shrimp') { this.icon = '🦐'; this.size = 18; this.speed = 1; this.vision = 100; }
         else if (type === 'oil') { this.icon = '🛢️'; this.size = 20; this.speed = 0.2; this.vx *= 0.1; this.vy *= 0.1; }
-        else if (type === 'coral') { this.icon = '🪸'; this.size = 30; this.speed = 0; this.vx = 0; this.vy = 0; }
+        else if (type === 'algae') { this.icon = '🌿'; this.size = 15; this.speed = 0; this.vx=0; this.vy=0; }
+        else if (type === 'coral') { this.icon = '🪸'; this.size = 30; this.speed = 0; this.vx=0; this.vy=0; }
     }
 
-    findNearest(agents, targetType) {
+    findNearest(agents, targetType, excludeAgent = null) {
         let closest = null;
         let minDist = Infinity;
         for (let other of agents) {
             if (other === this || other.dead) continue;
             if (other.type !== targetType) continue;
+            if (excludeAgent && other === excludeAgent) continue; 
+            
             const dist = Math.hypot(other.x - this.x, other.y - this.y);
-            if (dist < minDist && dist < this.vision) {
+            if (dist < minDist && (this.vision ? dist < this.vision : true)) {
                 minDist = dist;
                 closest = other;
             }
@@ -106,31 +132,28 @@ class Agent {
     }
 
     update(bounds, env, allAgents) {
-        // AI Logic (Steering)
-        if (this.type === 'shark') {
-            const prey = this.findNearest(allAgents, 'fish');
-            if (prey.agent) {
-                const dx = prey.agent.x - this.x;
-                const dy = prey.agent.y - this.y;
-                this.vx += (dx / prey.dist) * 0.2; 
-                this.vy += (dy / prey.dist) * 0.2;
-                if (prey.dist < (this.size + prey.agent.size) / 2) {
-                    prey.agent.dead = true;
-                    this.health = Math.min(100, this.health + 20);
-                    ui.showToast('Shark ate a fish!', 'alert');
-                }
-            }
-        } 
-        else if (this.type === 'fish') {
-            this.health -= 0.08; 
+        
+        // --- FISH LOGIC ---
+        if(this.type === 'fish') {
+            this.health -= 0.01;
+            if(env.pollution > 20) this.health -= 0.1;
+
             const predator = this.findNearest(allAgents, 'shark');
+            
             if (predator.agent && predator.dist < 100) {
+                if(this.currentCoral) this.lastCoral = this.currentCoral; 
+                this.coralTimer = 0; 
+                this.currentCoral = null;
                 const dx = this.x - predator.agent.x;
                 const dy = this.y - predator.agent.y;
                 this.vx += (dx / predator.dist) * 0.5; 
                 this.vy += (dy / predator.dist) * 0.5;
-            } else {
-                const food = this.findNearest(allAgents, 'food');
+            } 
+            else if (this.health < 50) {
+                if(this.currentCoral) this.lastCoral = this.currentCoral; 
+                this.coralTimer = 0; 
+                this.currentCoral = null;
+                const food = this.findNearest(allAgents, 'shrimp');
                 if (food.agent) {
                     const dx = food.agent.x - this.x;
                     const dy = food.agent.y - this.y;
@@ -142,11 +165,85 @@ class Agent {
                     }
                 }
             }
+            else {
+                if (this.coralTimer > 0) {
+                    this.coralTimer--;
+                    this.vx *= 0.9; 
+                    this.vy *= 0.9;
+                    this.vx += (Math.random() - 0.5) * 0.3; 
+                    this.vy += (Math.random() - 0.5) * 0.3;
+                    
+                    if(this.coralTimer === 0) {
+                        this.lastCoral = this.currentCoral; 
+                        this.currentCoral = null;
+                        this.coralCooldown = 600; 
+                        this.vx += (Math.random() - 0.5) * 4;
+                        this.vy += (Math.random() - 0.5) * 4;
+                    }
+                } 
+                else if (this.coralCooldown <= 0) {
+                    const coral = this.findNearest(allAgents, 'coral', this.lastCoral);
+                    if (coral.agent && coral.dist < 150) {
+                        const dx = coral.agent.x - this.x;
+                        const dy = coral.agent.y - this.y;
+                        this.vx += (dx / coral.dist) * 0.05;
+                        this.vy += (dy / coral.dist) * 0.05;
+                        
+                        if(coral.dist < 40) {
+                            this.coralTimer = 100; 
+                            this.currentCoral = coral.agent;
+                        }
+                    }
+                }
+                
+                if (this.coralCooldown > 0) this.coralCooldown--;
+            }
         }
 
-        // Velocity Limiting
+        // --- ALGAE ---
+        else if(this.type === 'algae') {
+            if(env.temp > 30) this.health -= 0.5;
+            else if(env.temp < 28 && env.pollution < 40 && this.health < 100) this.health += 0.1;
+        }
+
+        // --- SHRIMP (Health Logic Active) ---
+        else if(this.type === 'shrimp') {
+            this.health -= 0.005; // Hunger decay
+            if(this.health < 80) { 
+                const food = this.findNearest(allAgents, 'algae');
+                if(food.agent) {
+                    const dx = food.agent.x - this.x;
+                    const dy = food.agent.y - this.y;
+                    this.vx += (dx / food.dist) * 0.1;
+                    this.vy += (dy / food.dist) * 0.1;
+                    if(food.dist < 15) { food.agent.dead = true; this.health = 100; }
+                }
+            } else if(Math.random() < 0.02) {
+                this.vx += (Math.random() - 0.5); this.vy += (Math.random() - 0.5);
+            }
+        }
+
+        // --- SHARK ---
+        else if (this.type === 'shark') {
+            this.health -= 0.03; 
+            if (this.health < 70) {
+                const prey = this.findNearest(allAgents, 'fish');
+                if (prey.agent) {
+                    const dx = prey.agent.x - this.x;
+                    const dy = prey.agent.y - this.y;
+                    this.vx += (dx / prey.dist) * 0.2; 
+                    this.vy += (dy / prey.dist) * 0.2;
+                    if (prey.dist < (this.size + prey.agent.size) / 2) {
+                        prey.agent.dead = true;
+                        this.health = Math.min(100, this.health + 20);
+                    }
+                }
+            }
+        }
+
+        // Physics
         const v = Math.hypot(this.vx, this.vy);
-        if (v > this.speed) {
+        if (v > this.speed && this.speed > 0) {
             this.vx = (this.vx / v) * this.speed;
             this.vy = (this.vy / v) * this.speed;
         }
@@ -154,18 +251,11 @@ class Agent {
         this.x += this.vx;
         this.y += this.vy;
         
-        // BOUNDARY CHECK (FIXED): Bounce off edges of body, not center
-        // Prevents agents from going off-screen
         const buffer = this.size / 2;
         if (this.x < buffer) { this.x = buffer; this.vx *= -1; }
         if (this.x > bounds.width - buffer) { this.x = bounds.width - buffer; this.vx *= -1; }
         if (this.y < buffer) { this.y = buffer; this.vy *= -1; }
         if (this.y > bounds.height - buffer) { this.y = bounds.height - buffer; this.vy *= -1; }
-
-        if (this.type === 'fish' || this.type === 'coral') {
-            if (env.temp > 30) this.health -= 0.1;
-            if (env.pollution > 20) this.health -= 0.2;
-        }
         
         if (this.health <= 0) this.dead = true;
     }
@@ -197,12 +287,14 @@ class Simulation {
         this.viewMode = 'standard';
         this.isPlaying = true;
         this.isReviewing = false;
+        this.selectedAgent = null; 
         
         this.history = []; 
         this.markers = []; 
         this.time = 0; 
         this.liveHead = 0; 
         this.pxPerUnit = 10; 
+        this.speed = 1;
 
         this.resize();
         window.addEventListener('resize', () => {
@@ -210,7 +302,7 @@ class Simulation {
             this.updateTimelineLayout(); 
         });
         this.bindEvents();
-        this.loadPreset('healthy'); 
+        this.initWorld(); 
         this.loop();
     }
 
@@ -254,39 +346,30 @@ class Simulation {
         this.spawn(type, x, y);
     }
 
-    loadPreset(name) {
+    // DEFAULT WORLD (Replaced loadPreset)
+    initWorld() {
         this.agents = [];
         this.time = 0; 
         this.liveHead = 0;
         this.history = [];
         this.markers = [];
+        this.selectedAgent = null;
+        ui.hideTooltip();
         this.goLive();
         ui.clearTimeline(); 
         
         const w = this.canvas.width, h = this.canvas.height;
         
-        if(name === 'healthy') {
-            this.env.temp = 25; this.env.pollution = 0;
-            for(let i=0; i<15; i++) this.agents.push(new Agent('fish', Math.random()*w, Math.random()*h));
-            for(let i=0; i<3; i++) this.agents.push(new Agent('food', Math.random()*w, Math.random()*h));
-            ui.showToast("Preset: Healthy Reef");
-            this.addMarker(0, "Start: Healthy");
-        } else if (name === 'threatened') {
-            this.env.temp = 31; this.env.pollution = 40;
-            for(let i=0; i<8; i++) this.agents.push(new Agent('fish', Math.random()*w, Math.random()*h));
-            for(let i=0; i<10; i++) this.agents.push(new Agent('oil', Math.random()*w, Math.random()*h));
-            ui.showToast("Preset: Threatened");
-            this.addMarker(0, "Start: Threatened");
-        } else if (name === 'recovery') {
-            this.env.temp = 27; this.env.pollution = 10;
-            for(let i=0; i<10; i++) this.agents.push(new Agent('fish', Math.random()*w, Math.random()*h));
-            for(let i=0; i<5; i++) this.agents.push(new Agent('food', Math.random()*w, Math.random()*h));
-            ui.showToast("Preset: Recovery");
-            this.addMarker(0, "Start: Recovery");
-        }
+        // Initial Population
+        this.env.temp = 25; this.env.pollution = 0;
+        for(let i=0; i<15; i++) this.agents.push(new Agent('fish', Math.random()*w, Math.random()*h));
+        for(let i=0; i<5; i++) this.agents.push(new Agent('shrimp', Math.random()*w, Math.random()*h));
+        for(let i=0; i<20; i++) this.agents.push(new Agent('algae', Math.random()*w, Math.random()*h));
+        for(let i=0; i<5; i++) this.agents.push(new Agent('coral', Math.random()*w, Math.random()*h));
         
         this.syncSliders();
         this.recordState();
+        this.addMarker(0, "Start");
         document.getElementById('timeline-scroll-area').scrollLeft = 0;
     }
 
@@ -309,18 +392,30 @@ class Simulation {
         document.getElementById('btn-play').innerText = this.isPlaying ? "⏸" : "▶";
     }
 
+    toggleSpeed() {
+        this.speed = (this.speed === 1) ? 2 : 1;
+        document.getElementById('speed-btn').innerText = this.speed + "x Speed";
+        ui.showToast(`Speed set to ${this.speed}x`);
+    }
+
     scrub(e) {
-        const container = document.getElementById('timeline-scroll-area');
-        const rect = container.getBoundingClientRect();
-        const offsetX = e.clientX - rect.left + container.scrollLeft;
+        if (e.type === 'touchmove' || e.type === 'touchstart') e.preventDefault();
+
+        const track = document.getElementById('timeline-track');
+        const rect = track.getBoundingClientRect();
         
-        let clickedTime = offsetX / this.pxPerUnit;
-        if(clickedTime < 0) clickedTime = 0;
-        if(clickedTime > this.liveHead) clickedTime = this.liveHead;
+        let clientX = e.clientX;
+        if (e.touches && e.touches.length > 0) clientX = e.touches[0].clientX;
+
+        let clickInsideTrack = clientX - rect.left;
+        if (clickInsideTrack < 0) clickInsideTrack = 0;
+
+        let clickedTime = clickInsideTrack / this.pxPerUnit;
+        if (clickedTime > this.liveHead) clickedTime = this.liveHead;
 
         this.time = clickedTime;
         
-        if(Math.abs(this.time - this.liveHead) > 0.5) {
+        if (Math.abs(this.time - this.liveHead) > 0.5) {
             this.isReviewing = true;
             this.isPlaying = false; 
             document.getElementById('btn-play').innerText = "▶";
@@ -358,7 +453,7 @@ class Simulation {
         }
         this.isPlaying = true;
         document.getElementById('btn-play').innerText = "⏸";
-        ui.showToast("LIVE");
+        ui.showToast("🔴 LIVE");
     }
 
     bindEvents() {
@@ -370,7 +465,34 @@ class Simulation {
             this.spawn(e.dataTransfer.getData("type"), e.clientX - rect.left, e.clientY - rect.top);
         });
 
+        this.canvas.addEventListener('click', e => {
+            if(this.isReviewing) return;
+            const rect = this.canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            
+            let found = null;
+            for(let i = this.agents.length - 1; i >= 0; i--) {
+                const a = this.agents[i];
+                if(Math.hypot(a.x - clickX, a.y - clickY) < a.size * 1.5) {
+                    found = a;
+                    break;
+                }
+            }
+            if(found) {
+                this.selectedAgent = found;
+                ui.selectedMode = true;
+                ui.showTooltip(found.x, found.y, found);
+            } else {
+                this.selectedAgent = null;
+                ui.selectedMode = false;
+                ui.hideTooltip();
+            }
+        });
+
         this.canvas.addEventListener('mousemove', e => {
+            if(ui.selectedMode) return; 
+            
             const rect = this.canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left, my = e.clientY - rect.top;
             let hovered = false;
@@ -386,24 +508,33 @@ class Simulation {
             if(!hovered) { ui.hideTooltip(); this.canvas.style.cursor = 'default'; }
         });
 
-        document.getElementById('slider-temp').addEventListener('input', e => {
+        const track = document.getElementById('timeline-track');
+        track.addEventListener('click', e => this.scrub(e));
+        track.addEventListener('touchstart', e => this.scrub(e), {passive: false});
+        track.addEventListener('touchmove', e => this.scrub(e), {passive: false});
+
+        const tempSlider = document.getElementById('slider-temp');
+        tempSlider.addEventListener('input', e => {
             if(this.isReviewing) return;
             this.env.temp = parseInt(e.target.value);
             document.getElementById('val-temp').innerText = this.env.temp + "°C";
         });
-        document.getElementById('slider-temp').addEventListener('change', e => {
+        tempSlider.addEventListener('change', e => {
             if(this.isReviewing) return;
+            ui.showToast(`Temperature set to ${this.env.temp}°C`);
             this.addMarker(this.time, `Temp: ${this.env.temp}°C`);
             this.recordState();
         });
 
-        document.getElementById('slider-pol').addEventListener('input', e => {
+        const polSlider = document.getElementById('slider-pol');
+        polSlider.addEventListener('input', e => {
             if(this.isReviewing) return;
             this.env.pollution = parseInt(e.target.value);
             document.getElementById('val-pol').innerText = this.env.pollution + "%";
         });
-        document.getElementById('slider-pol').addEventListener('change', e => {
+        polSlider.addEventListener('change', e => {
             if(this.isReviewing) return;
+            ui.showToast(`Pollution set to ${this.env.pollution}%`);
             this.addMarker(this.time, `Pollution: ${this.env.pollution}%`);
             this.recordState();
         });
@@ -412,21 +543,30 @@ class Simulation {
     loop() {
         if(this.isPlaying) {
             if(!this.isReviewing) {
-                this.time += 0.05;
-                if(Math.floor(this.time) > Math.floor(this.time - 0.05)) {
+                this.time += 0.05 * this.speed; 
+                
+                // Natural Algae Growth
+                if(this.env.temp < 28 && this.env.pollution < 40 && Math.random() < 0.01) {
+                    this.agents.push(new Agent('algae', Math.random()*this.canvas.width, Math.random()*this.canvas.height));
+                }
+
+                if(Math.floor(this.time) > Math.floor(this.time - (0.05 * this.speed))) {
                     this.recordState();
                 }
 
                 this.agents.forEach((a, i) => {
                     a.update({width: this.canvas.width, height: this.canvas.height}, this.env, this.agents);
-                    if(a.dead) this.agents.splice(i, 1);
+                    if(a.dead) {
+                        if(this.selectedAgent === a) { this.selectedAgent = null; ui.selectedMode = false; ui.hideTooltip(); }
+                        this.agents.splice(i, 1);
+                    }
                 });
 
                 const scrollArea = document.getElementById('timeline-scroll-area');
                 scrollArea.scrollLeft = scrollArea.scrollWidth;
             } 
             else {
-                this.time += 0.05;
+                this.time += 0.05 * this.speed;
                 if(this.time >= this.liveHead) {
                     this.goLive();
                     requestAnimationFrame(() => this.loop());
@@ -448,6 +588,10 @@ class Simulation {
         this.ctx.fillRect(0,0, this.canvas.width, this.canvas.height);
 
         this.agents.forEach(a => a.draw(this.ctx, this.viewMode));
+
+        if(this.selectedAgent && !this.selectedAgent.dead) {
+            ui.showTooltip(this.selectedAgent.x, this.selectedAgent.y, this.selectedAgent);
+        }
 
         const track = document.getElementById('timeline-track');
         const maxTime = Math.max(100, this.liveHead); 
