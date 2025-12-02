@@ -8,8 +8,11 @@ const ui = {
     statsDOM: {}, 
     
     init: () => {
-        document.getElementById('menu-toggle').onclick = () => ui.sidebar.classList.add('open');
-        document.getElementById('close-menu').onclick = () => ui.sidebar.classList.remove('open');
+        const toggle = document.getElementById('menu-toggle');
+        if(toggle) toggle.onclick = () => ui.sidebar.classList.add('open');
+        
+        const close = document.getElementById('close-menu');
+        if(close) close.onclick = () => ui.sidebar.classList.remove('open');
         
         ui.injectRockButton();
         ui.setupTouchDrag();
@@ -18,12 +21,13 @@ const ui = {
 
     injectRockButton: () => {
         const container = document.getElementById('tab-species');
+        if(!container) return;
         if(!container.querySelector('.rock-btn')) {
             const div = document.createElement('div');
             div.className = 'draggable-item rock-btn';
             div.setAttribute('draggable', 'true');
             div.onclick = () => ui.clickSpawn('rock');
-            div.innerHTML = `<i class="ph ph-hexagon icon" style="color:#94a3b8"></i> <span>Rock (Wall)</span>`;
+            div.innerHTML = `<i class="ph ph-hexagon icon" style="color:#94a3b8"></i> <span>Rock (Mountain)</span>`;
             div.addEventListener('dragstart', (e) => ui.drag(e, 'rock'));
             container.appendChild(div);
         }
@@ -83,7 +87,9 @@ const ui = {
     switchTab: (tabName) => {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active-content'));
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-        document.getElementById(`tab-${tabName}`).classList.add('active-content');
+        const content = document.getElementById(`tab-${tabName}`);
+        if(content) content.classList.add('active-content');
+        
         const btnIndex = tabName === 'environment' ? 0 : 1; 
         if(document.querySelectorAll('.tab-btn')[btnIndex]) {
             document.querySelectorAll('.tab-btn')[btnIndex].classList.add('active');
@@ -92,6 +98,7 @@ const ui = {
 
     showToast: (msg, type = 'info') => {
         const container = document.getElementById('toast-container');
+        if(!container) return;
         const toast = document.createElement('div');
         toast.className = 'toast';
         let color = '#38bdf8';
@@ -115,7 +122,7 @@ const ui = {
         
         let status = `Health: ${Math.round(agent.health)}%`;
         if(agent.type === 'oil') status = "Pollutant (Toxic)";
-        if(agent.type === 'rock') status = "Obstacle";
+        if(agent.type === 'rock') status = "Structure";
         document.getElementById('tt-health').innerText = status;
     },
     hideTooltip: () => { ui.tooltip.classList.add('hidden'); },
@@ -131,17 +138,19 @@ const ui = {
     
     clearTimeline: () => {
         const track = document.getElementById('timeline-track');
+        if(!track) return;
         const markers = track.querySelectorAll('.t-marker');
         markers.forEach(m => m.remove());
     },
 
     setReviewMode: (isReviewing) => {
+        const goLive = document.getElementById('btn-go-live');
         if(isReviewing) {
             ui.sidebarLock.classList.remove('hidden');
-            document.getElementById('btn-go-live').classList.remove('hidden');
+            if(goLive) goLive.classList.remove('hidden');
         } else {
             ui.sidebarLock.classList.add('hidden');
-            document.getElementById('btn-go-live').classList.add('hidden');
+            if(goLive) goLive.classList.add('hidden');
         }
     },
 
@@ -209,7 +218,7 @@ const ui = {
     }
 };
 
-/* --- SIMULATION ENGINE WITH AI --- */
+/* --- SIMULATION ENGINE --- */
 class Agent {
     constructor(type, x, y, health=100, id=null) {
         this.id = id || Math.random().toString(36).substr(2, 9);
@@ -226,7 +235,6 @@ class Agent {
         this.lastCoral = null; 
         this.currentCoral = null; 
 
-        // Reproduction Timer
         this.reproCooldown = 0;
         
         if(type === 'fish') { this.icon = '🐟'; this.size = 24; this.speed = 2; this.vision = 150; }
@@ -234,7 +242,12 @@ class Agent {
         else if (type === 'shrimp') { this.icon = '🦐'; this.size = 18; this.speed = 1; this.vision = 100; }
         else if (type === 'algae') { this.icon = '🌿'; this.size = 15; this.speed = 0; this.vx=0; this.vy=0; }
         else if (type === 'coral') { this.icon = '🪸'; this.size = 30; this.speed = 0; this.vx=0; this.vy=0; }
-        else if (type === 'rock') { this.icon = '🪨'; this.size = 35; this.speed = 0; this.vx=0; this.vy=0; }
+        else if (type === 'rock') { 
+            this.icon = '🪨'; 
+            // Random size: Bigger rock = Bigger Topographic impact
+            this.size = 25 + Math.random() * 55; 
+            this.speed = 0; this.vx=0; this.vy=0; 
+        }
     }
 
     findNearest(agents, targetType, excludeAgent = null) {
@@ -255,14 +268,13 @@ class Agent {
     }
 
     update(bounds, env, allAgents, spawnCallback) {
-        // --- STATIC AGENTS ---
         if(this.type === 'rock') return; 
 
         // --- COLLISION WITH ROCKS (OBSTACLES) ---
         for(let other of allAgents) {
             if(other.type === 'rock') {
                 const dist = Math.hypot(this.x - other.x, this.y - other.y);
-                const minDist = (this.size + other.size) / 2; // Approximate radius
+                const minDist = (this.size + other.size) / 2; 
                 
                 if(dist < minDist) {
                     const nx = (this.x - other.x) / dist;
@@ -279,7 +291,7 @@ class Agent {
             }
         }
 
-        // --- MOVEMENT & BEHAVIOR LOGIC ---
+        // --- BEHAVIOR ---
         if(this.type === 'fish') {
             this.health -= 0.01;
             if(env.pollution > 20) this.health -= 0.1;
@@ -364,7 +376,7 @@ class Agent {
             }
         }
 
-        // --- REPRODUCTION LOGIC ---
+        // --- REPRODUCTION ---
         if(this.reproCooldown > 0) {
             this.reproCooldown--;
         } else if (['fish', 'shark', 'shrimp'].includes(this.type) && this.health >= 80) {
@@ -428,6 +440,7 @@ class Simulation {
         this.bgCtx = this.bgCanvas.getContext('2d');
         
         this.agents = [];
+        this.terrainModifiers = []; // Stores rocks as data points that alter terrain
         this.env = { temp: 25, pollution: 0 };
         this.viewMode = 'standard';
         this.isPlaying = true;
@@ -441,7 +454,6 @@ class Simulation {
         this.pxPerUnit = 10;
         this.isScrubbing = false;
 
-        // Map Randomness
         this.mapOffsetX = 0;
         this.mapOffsetY = 0;
 
@@ -460,51 +472,80 @@ class Simulation {
         this.canvas.height = window.innerHeight;
         this.bgCanvas.width = window.innerWidth;
         this.bgCanvas.height = window.innerHeight;
-        this.generateMap();
+        this.renderMap();
         const timelineContainer = document.getElementById('timeline-scroll-area');
         if(timelineContainer) this.pxPerUnit = timelineContainer.clientWidth / 100;
     }
 
-    // --- PROCEDURAL MAP GENERATION (SMOOTH) ---
-    generateMap() {
+    // --- PROCEDURAL HEIGHT CALCULATOR ---
+    // Now includes rock data in the mathematical height calculation
+    getGlobalHeight(x, y) {
+        // 1. Base Noise
+        const scale = 300;
+        const nx = x + this.mapOffsetX;
+        const ny = y + this.mapOffsetY;
+        const v1 = Math.sin(nx/scale) * Math.cos(ny/scale);
+        const v2 = Math.sin((nx+ny)/(scale*1.5)) * 0.5;
+        const v3 = Math.cos((nx-ny)/(scale*2)) * 0.3;
+        let h = (v1 + v2 + v3 + 2) / 4; 
+
+        // 2. Add Terrain Modifiers (Rocks act as mountains)
+        for (let mod of this.terrainModifiers) {
+            const dx = x - mod.x;
+            const dy = y - mod.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            // Influence radius is roughly 3x the rock size
+            const radius = mod.size * 2.5; 
+            
+            if (dist < radius) {
+                // Cosine curve for smooth topographical blending
+                // normalize dist 0 to 1
+                const norm = dist / radius; 
+                // height additive (0.5 at center, 0 at edge)
+                const bump = (Math.cos(norm * Math.PI) + 1) / 2 * 0.4; 
+                h += bump;
+            }
+        }
+        return Math.min(1.0, h);
+    }
+
+    // --- MAP RENDERER ---
+    // Redraws the entire topographic map based on the height function
+    renderMap() {
         const w = this.bgCanvas.width;
         const h = this.bgCanvas.height;
         const ctx = this.bgCtx;
         
-        // 1. Base Layer
+        ctx.clearRect(0, 0, w, h);
+
+        // 1. Base Water Layer
         const gradient = ctx.createLinearGradient(0, 0, 0, h);
         gradient.addColorStop(0, '#020617'); 
         gradient.addColorStop(1, '#0f172a');
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, w, h);
 
-        const scale = 300;
-        const getHeight = (x, y) => {
-            const nx = x + this.mapOffsetX;
-            const ny = y + this.mapOffsetY;
-            const v1 = Math.sin(nx/scale) * Math.cos(ny/scale);
-            const v2 = Math.sin((nx+ny)/(scale*1.5)) * 0.5;
-            const v3 = Math.cos((nx-ny)/(scale*2)) * 0.3;
-            return (v1 + v2 + v3 + 2) / 4; 
-        };
-
-        // 2. Draw Blurred Terrain (Blobs)
+        // 2. Render Blobs based on getGlobalHeight (Standard + Rocks)
+        // Optimization: Use relatively large steps to keep performance high
         ctx.save();
-        ctx.filter = 'blur(30px)'; // Heavy blur for smooth gradients
+        ctx.filter = 'blur(20px)';
         
         const step = 15; 
         for(let y = 0; y < h; y += step) {
             for(let x = 0; x < w; x += step) {
-                const val = getHeight(x, y);
-                // Draw blobs based on height
+                const val = this.getGlobalHeight(x, y);
+                
+                // Deep Ridge
                 if(val > 0.6) {
-                    ctx.fillStyle = `rgba(30, 58, 138, ${val - 0.5})`; // Deep Blue Highlight
+                    ctx.fillStyle = `rgba(30, 58, 138, ${val - 0.5})`; 
                     ctx.beginPath();
                     ctx.arc(x, y, step * 1.5, 0, Math.PI*2);
                     ctx.fill();
                 }
+                // Shallow / Land
                 if(val > 0.8) {
-                    ctx.fillStyle = `rgba(56, 189, 248, 0.2)`; // Light Blue Ridge
+                    ctx.fillStyle = `rgba(56, 189, 248, 0.25)`; 
                     ctx.beginPath();
                     ctx.arc(x, y, step, 0, Math.PI*2);
                     ctx.fill();
@@ -513,23 +554,23 @@ class Simulation {
         }
         ctx.restore();
 
-        // 3. Draw Sharp Contour Lines
+        // 3. Render Contour Lines (Isolines)
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'rgba(255,255,255,0.08)';
         ctx.beginPath();
         
+        // A bit coarser step for lines to save CPU
         for(let y = 0; y < h; y += 8) {
             for(let x = 0; x < w; x += 8) {
-                const val = getHeight(x, y);
-                if(Math.abs(val - 0.65) < 0.015 || Math.abs(val - 0.8) < 0.015) {
+                const val = this.getGlobalHeight(x, y);
+                // Draw lines at specific heights
+                if(Math.abs(val - 0.65) < 0.02 || Math.abs(val - 0.8) < 0.02) {
                     ctx.moveTo(x, y);
                     ctx.lineTo(x+2, y+2);
                 }
             }
         }
         ctx.stroke();
-
-        this.getHeight = getHeight;
     }
 
     updateTimelineLayout() {
@@ -541,7 +582,7 @@ class Simulation {
             time: this.time,
             env: { ...this.env },
             agents: this.agents.map(a => ({ 
-                id: a.id, type: a.type, x: a.x, y: a.y, health: a.health 
+                id: a.id, type: a.type, x: a.x, y: a.y, health: a.health, size: a.size
             }))
         };
         this.history.push(snapshot);
@@ -556,7 +597,18 @@ class Simulation {
 
     spawn(type, x, y) {
         if(this.isReviewing) { ui.showToast("Cannot edit past! Go Live first.", "alert"); return; }
-        this.agents.push(new Agent(type, x, y));
+        
+        const agent = new Agent(type, x, y);
+        this.agents.push(agent);
+        
+        // --- DYNAMIC TERRAIN UPDATE ---
+        if(type === 'rock') {
+            // 1. Add rock to topological data
+            this.terrainModifiers.push({ x: x, y: y, size: agent.size });
+            // 2. Re-render the map to show new contours/depths
+            this.renderMap();
+        }
+        
         this.recordState();
     }
 
@@ -569,6 +621,7 @@ class Simulation {
 
     initWorld() {
         this.agents = [];
+        this.terrainModifiers = []; // Reset terrain
         this.time = 0; 
         this.liveHead = 0;
         this.history = [];
@@ -579,36 +632,34 @@ class Simulation {
         
         const w = this.canvas.width, h = this.canvas.height;
         
-        // Randomize Map Seed
         this.mapOffsetX = Math.random() * 10000;
         this.mapOffsetY = Math.random() * 10000;
-        this.generateMap();
+        
+        // Generate Base Map
+        this.renderMap();
 
         this.env.temp = 25; this.env.pollution = 0;
         
-        // --- ADDED DEFAULT SHARKS HERE ---
+        // Default Agents
         for(let i=0; i<2; i++) this.agents.push(new Agent('shark', Math.random()*w, Math.random()*h));
-
         for(let i=0; i<15; i++) this.agents.push(new Agent('fish', Math.random()*w, Math.random()*h));
         for(let i=0; i<5; i++) this.agents.push(new Agent('shrimp', Math.random()*w, Math.random()*h));
         for(let i=0; i<20; i++) this.agents.push(new Agent('algae', Math.random()*w, Math.random()*h));
         for(let i=0; i<5; i++) this.agents.push(new Agent('coral', Math.random()*w, Math.random()*h));
 
-        // Spawn Rocks
+        // Spawn Rocks and UPDATE TERRAIN for each
         for(let i=0; i<8; i++) {
-            let placed = false;
-            let attempts = 0;
-            while(!placed && attempts < 100) {
-                const rx = Math.random() * w;
-                const ry = Math.random() * h;
-                if(this.getHeight(rx, ry) > 0.7) { 
-                    this.agents.push(new Agent('rock', rx, ry));
-                    placed = true;
-                }
-                attempts++;
-            }
-            if(!placed) this.agents.push(new Agent('rock', Math.random()*w, Math.random()*h));
+            const rx = Math.random() * w;
+            const ry = Math.random() * h;
+            // Create agent
+            const rock = new Agent('rock', rx, ry);
+            this.agents.push(rock);
+            // Add to terrain data
+            this.terrainModifiers.push({ x: rx, y: ry, size: rock.size });
         }
+        
+        // Final render after initial rocks
+        this.renderMap();
         
         this.syncSliders();
         this.recordState();
@@ -620,27 +671,33 @@ class Simulation {
     }
 
     syncSliders() {
-        document.getElementById('slider-temp').value = this.env.temp;
-        document.getElementById('val-temp').innerText = this.env.temp + "°C";
-        document.getElementById('slider-pol').value = this.env.pollution;
-        document.getElementById('val-pol').innerText = this.env.pollution + "%";
+        const tSlider = document.getElementById('slider-temp');
+        const pSlider = document.getElementById('slider-pol');
+        if(tSlider) { tSlider.value = this.env.temp; document.getElementById('val-temp').innerText = this.env.temp + "°C"; }
+        if(pSlider) { pSlider.value = this.env.pollution; document.getElementById('val-pol').innerText = this.env.pollution + "%"; }
     }
 
     toggleView(mode) {
         this.viewMode = mode;
-        document.getElementById('view-std').classList.toggle('active', mode === 'standard');
-        document.getElementById('view-heat').classList.toggle('active', mode === 'heatmap');
+        const std = document.getElementById('view-std');
+        const heat = document.getElementById('view-heat');
+        if(std) std.classList.toggle('active', mode === 'standard');
+        if(heat) heat.classList.toggle('active', mode === 'heatmap');
         ui.showToast(`View Mode: ${mode.toUpperCase()}`);
     }
 
     togglePlay() {
         this.isPlaying = !this.isPlaying;
-        const icon = this.isPlaying ? '<i class="ph ph-pause"></i>' : '<i class="ph ph-play"></i>';
-        document.getElementById('btn-play').innerHTML = icon;
+        const btn = document.getElementById('btn-play');
+        if(btn) {
+            const icon = this.isPlaying ? '<i class="ph ph-pause"></i>' : '<i class="ph ph-play"></i>';
+            btn.innerHTML = icon;
+        }
     }
 
     scrub(e) {
         const track = document.getElementById('timeline-track');
+        if(!track) return;
         const rect = track.getBoundingClientRect();
         
         let clientX = e.clientX;
@@ -653,12 +710,14 @@ class Simulation {
         if (clickedTime > this.liveHead) clickedTime = this.liveHead;
 
         this.time = clickedTime;
-        document.getElementById('timeline-fill').style.width = (this.time * this.pxPerUnit) + 'px';
+        const fill = document.getElementById('timeline-fill');
+        if(fill) fill.style.width = (this.time * this.pxPerUnit) + 'px';
 
         if (Math.abs(this.time - this.liveHead) > 0.5) {
             this.isReviewing = true;
             this.isPlaying = false; 
-            document.getElementById('btn-play').innerHTML = '<i class="ph ph-play"></i>';
+            const btn = document.getElementById('btn-play');
+            if(btn) btn.innerHTML = '<i class="ph ph-play"></i>';
             ui.setReviewMode(true);
             this.applyInterpolation(); 
         } else {
@@ -674,11 +733,16 @@ class Simulation {
         if(last) {
             this.time = last.time;
             this.env = { ...last.env };
-            this.agents = last.agents.map(d => new Agent(d.type, d.x, d.y, d.health, d.id));
+            this.agents = last.agents.map(d => {
+                const a = new Agent(d.type, d.x, d.y, d.health, d.id);
+                if(d.size) a.size = d.size;
+                return a;
+            });
             this.syncSliders();
         }
         this.isPlaying = true;
-        document.getElementById('btn-play').innerHTML = '<i class="ph ph-pause"></i>';
+        const btn = document.getElementById('btn-play');
+        if(btn) btn.innerHTML = '<i class="ph ph-pause"></i>';
         if(wasReviewing) ui.showToast("🔴 LIVE");
     }
 
@@ -733,9 +797,11 @@ class Simulation {
         });
 
         const track = document.getElementById('timeline-track');
-        const startDrag = (e) => { this.isScrubbing = true; this.scrub(e); };
-        track.addEventListener('mousedown', startDrag);
-        track.addEventListener('touchstart', startDrag, {passive: false});
+        if(track) {
+            const startDrag = (e) => { this.isScrubbing = true; this.scrub(e); };
+            track.addEventListener('mousedown', startDrag);
+            track.addEventListener('touchstart', startDrag, {passive: false});
+        }
 
         const moveDrag = (e) => { if(this.isScrubbing) { if(e.type === 'touchmove') e.preventDefault(); this.scrub(e); } };
         window.addEventListener('mousemove', moveDrag);
@@ -745,29 +811,35 @@ class Simulation {
         window.addEventListener('mouseup', endDrag);
         window.addEventListener('touchend', endDrag);
 
-        document.getElementById('slider-temp').addEventListener('input', e => {
-            if(this.isReviewing) return;
-            this.env.temp = parseInt(e.target.value);
-            document.getElementById('val-temp').innerText = this.env.temp + "°C";
-        });
-        document.getElementById('slider-temp').addEventListener('change', e => {
-            if(this.isReviewing) return;
-            ui.showToast(`Temperature set to ${this.env.temp}°C`);
-            this.addMarker(this.time, `Temp: ${this.env.temp}°C`);
-            this.recordState();
-        });
+        const tempSlider = document.getElementById('slider-temp');
+        if(tempSlider) {
+            tempSlider.addEventListener('input', e => {
+                if(this.isReviewing) return;
+                this.env.temp = parseInt(e.target.value);
+                document.getElementById('val-temp').innerText = this.env.temp + "°C";
+            });
+            tempSlider.addEventListener('change', e => {
+                if(this.isReviewing) return;
+                ui.showToast(`Temperature set to ${this.env.temp}°C`);
+                this.addMarker(this.time, `Temp: ${this.env.temp}°C`);
+                this.recordState();
+            });
+        }
 
-        document.getElementById('slider-pol').addEventListener('input', e => {
-            if(this.isReviewing) return;
-            this.env.pollution = parseInt(e.target.value);
-            document.getElementById('val-pol').innerText = this.env.pollution + "%";
-        });
-        document.getElementById('slider-pol').addEventListener('change', e => {
-            if(this.isReviewing) return;
-            ui.showToast(`Pollution set to ${this.env.pollution}%`);
-            this.addMarker(this.time, `Pollution: ${this.env.pollution}%`);
-            this.recordState();
-        });
+        const polSlider = document.getElementById('slider-pol');
+        if(polSlider) {
+            polSlider.addEventListener('input', e => {
+                if(this.isReviewing) return;
+                this.env.pollution = parseInt(e.target.value);
+                document.getElementById('val-pol').innerText = this.env.pollution + "%";
+            });
+            polSlider.addEventListener('change', e => {
+                if(this.isReviewing) return;
+                ui.showToast(`Pollution set to ${this.env.pollution}%`);
+                this.addMarker(this.time, `Pollution: ${this.env.pollution}%`);
+                this.recordState();
+            });
+        }
     }
 
     applyInterpolation() {
@@ -789,6 +861,7 @@ class Simulation {
                     const lerpX = aStart.x + (aEnd.x - aStart.x) * t;
                     const lerpY = aStart.y + (aEnd.y - aStart.y) * t;
                     const dummy = new Agent(aStart.type, lerpX, lerpY, aStart.health, aStart.id);
+                    if(aStart.size) dummy.size = aStart.size;
                     dummy.dead = false; 
                     tempAgents.push(dummy);
                 }
@@ -802,28 +875,27 @@ class Simulation {
     loop() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // DRAW PRE-RENDERED MAP
+        // DRAW THE PROCEDURALLY GENERATED MAP
         this.ctx.drawImage(this.bgCanvas, 0, 0);
 
         // --- DYNAMIC COLOR OVERLAYS ---
         this.ctx.save();
         
-        // Temperature Overlay (Reddish-Blue)
+        // Temperature Overlay
         if(this.env.temp > 25) {
-            const heat = (this.env.temp - 25) / 10; // Normalize 0 to 1
-            this.ctx.fillStyle = `rgba(255, 50, 20, ${heat * 0.4})`; // Red Tint
+            const heat = (this.env.temp - 25) / 10; 
+            this.ctx.fillStyle = `rgba(255, 50, 20, ${heat * 0.4})`;
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         }
 
-        // Pollution Overlay (Purple)
+        // Pollution Overlay
         if(this.env.pollution > 0) {
             const tox = this.env.pollution / 100;
-            this.ctx.fillStyle = `rgba(100, 0, 150, ${tox * 0.6})`; // Purple Tint
+            this.ctx.fillStyle = `rgba(100, 0, 150, ${tox * 0.6})`;
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         }
         
         this.ctx.restore();
-        // ------------------------------
 
         if(this.isPlaying) {
             if(!this.isReviewing) {
@@ -872,10 +944,14 @@ class Simulation {
         }
 
         const track = document.getElementById('timeline-track');
-        const maxTime = Math.max(100, this.liveHead); 
-        track.style.minWidth = (maxTime * this.pxPerUnit) + 'px';
-        document.getElementById('timeline-buffer').style.width = (this.liveHead * this.pxPerUnit) + 'px';
-        document.getElementById('timeline-fill').style.width = (this.time * this.pxPerUnit) + 'px';
+        if(track) {
+            const maxTime = Math.max(100, this.liveHead); 
+            track.style.minWidth = (maxTime * this.pxPerUnit) + 'px';
+            const buff = document.getElementById('timeline-buffer');
+            if(buff) buff.style.width = (this.liveHead * this.pxPerUnit) + 'px';
+            const fill = document.getElementById('timeline-fill');
+            if(fill) fill.style.width = (this.time * this.pxPerUnit) + 'px';
+        }
 
         requestAnimationFrame(() => this.loop());
     }
