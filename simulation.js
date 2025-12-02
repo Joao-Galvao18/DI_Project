@@ -294,7 +294,6 @@ class Simulation {
         this.time = 0; 
         this.liveHead = 0; 
         this.pxPerUnit = 10; 
-        this.speed = 1;
 
         this.resize();
         window.addEventListener('resize', () => {
@@ -402,12 +401,6 @@ class Simulation {
         document.getElementById('btn-play').innerText = this.isPlaying ? "⏸" : "▶";
     }
 
-    toggleSpeed() {
-        this.speed = (this.speed === 1) ? 2 : 1;
-        document.getElementById('speed-btn').innerText = this.speed + "x Speed";
-        ui.showToast(`Speed set to ${this.speed}x`);
-    }
-
     scrub(e) {
         if (e.type === 'touchmove' || e.type === 'touchstart') e.preventDefault();
 
@@ -430,7 +423,9 @@ class Simulation {
             this.isPlaying = false; 
             document.getElementById('btn-play').innerText = "▶";
             ui.setReviewMode(true);
-            ui.showToast(`Rewound to ${Math.round(this.time)}`);
+            
+            // IMMEDIATE UPDATE: Interpolate right now so the user sees changes while dragging
+            this.applyInterpolation();
         } else {
             this.goLive();
         }
@@ -537,20 +532,71 @@ class Simulation {
         });
     }
 
+    // Helper to calculate agent positions based on 'this.time' (Interpolation)
+    applyInterpolation() {
+        // 1. Find the two snapshots surrounding current time
+        let startIndex = -1;
+        for(let i=0; i<this.history.length-1; i++) {
+            if(this.history[i].time <= this.time && this.history[i+1].time > this.time) {
+                startIndex = i;
+                break;
+            }
+        }
+
+        if(startIndex !== -1) {
+            const snapA = this.history[startIndex];
+            const snapB = this.history[startIndex+1];
+            
+            // Calculate ratio (0.0 to 1.0) between snapshots
+            const t = (this.time - snapA.time) / (snapB.time - snapA.time);
+            
+            // Map Agents for visual frame
+            const tempAgents = [];
+            snapA.agents.forEach(aStart => {
+                const aEnd = snapB.agents.find(a => a.id === aStart.id);
+                if(aEnd) {
+                    // Interpolate position
+                    const lerpX = aStart.x + (aEnd.x - aStart.x) * t;
+                    const lerpY = aStart.y + (aEnd.y - aStart.y) * t;
+                    
+                    // Create visual dummy agent
+                    const dummy = new Agent(aStart.type, lerpX, lerpY, aStart.health, aStart.id);
+                    dummy.dead = false; // ensure visible
+                    tempAgents.push(dummy);
+                }
+            });
+            
+            this.agents = tempAgents;
+            // Sync environment sliders
+            this.env = snapA.env; 
+            this.syncSliders();
+        }
+    }
+
     // --- MAIN LOOP ---
     loop() {
+        // Clear Canvas
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Draw Background
+        const r = this.env.pollution * 1.5;
+        const g = Math.max(50, 100 - (this.env.pollution));
+        const b = Math.max(50, 200 - (this.env.pollution * 2));
+        this.ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        this.ctx.fillRect(0,0, this.canvas.width, this.canvas.height);
+
+        // --- UPDATE LOGIC ---
         if(this.isPlaying) {
-            
-            // --- LIVE MODE ---
             if(!this.isReviewing) {
-                this.time += 0.05 * this.speed; 
+                // LIVE MODE: Advance physics
+                this.time += 0.05; 
                 
                 // Logic
                 if(this.env.temp < 28 && this.env.pollution < 40 && Math.random() < 0.01) {
                     this.agents.push(new Agent('algae', Math.random()*this.canvas.width, Math.random()*this.canvas.height));
                 }
 
-                if(Math.floor(this.time) > Math.floor(this.time - (0.05 * this.speed))) {
+                if(Math.floor(this.time) > Math.floor(this.time - 0.05)) {
                     this.recordState();
                 }
 
@@ -565,84 +611,38 @@ class Simulation {
                 const scrollArea = document.getElementById('timeline-scroll-area');
                 if(scrollArea) scrollArea.scrollLeft = scrollArea.scrollWidth;
             } 
-            
-            // --- REPLAY MODE (Interpolated) ---
             else {
-                this.time += 0.05 * this.speed;
-
-                // Check if we hit live head
+                // REPLAY PLAYBACK: Advance time only
+                this.time += 0.05;
                 if(this.time >= this.liveHead) {
                     this.goLive();
-                    requestAnimationFrame(() => this.loop());
-                    return; 
-                }
-
-                // INTERPOLATION LOGIC
-                // 1. Find the two snapshots surrounding current time
-                let startIndex = -1;
-                for(let i=0; i<this.history.length-1; i++) {
-                    if(this.history[i].time <= this.time && this.history[i+1].time > this.time) {
-                        startIndex = i;
-                        break;
-                    }
-                }
-
-                if(startIndex !== -1) {
-                    const snapA = this.history[startIndex];
-                    const snapB = this.history[startIndex+1];
-                    
-                    // Calculate ratio (0.0 to 1.0) between snapshots
-                    const t = (this.time - snapA.time) / (snapB.time - snapA.time);
-                    
-                    // Map Agents for visual frame
-                    const tempAgents = [];
-                    snapA.agents.forEach(aStart => {
-                        const aEnd = snapB.agents.find(a => a.id === aStart.id);
-                        if(aEnd) {
-                            // Interpolate position
-                            const lerpX = aStart.x + (aEnd.x - aStart.x) * t;
-                            const lerpY = aStart.y + (aEnd.y - aStart.y) * t;
-                            
-                            // Create visual dummy agent
-                            const dummy = new Agent(aStart.type, lerpX, lerpY, aStart.health, aStart.id);
-                            dummy.dead = false; // ensure visible
-                            tempAgents.push(dummy);
-                        }
-                    });
-                    
-                    this.agents = tempAgents;
-                    // Sync environment sliders
-                    this.env = snapA.env; 
-                    this.syncSliders();
                 }
             }
         }
 
-        // --- DRAWING ---
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        const r = this.env.pollution * 1.5;
-        const g = Math.max(50, 100 - (this.env.pollution));
-        const b = Math.max(50, 200 - (this.env.pollution * 2));
-        this.ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-        this.ctx.fillRect(0,0, this.canvas.width, this.canvas.height);
+        // --- APPLY REPLAY STATE ---
+        // We do this every frame if reviewing (whether playing OR paused)
+        if(this.isReviewing) {
+            this.applyInterpolation();
+        }
 
+        // --- DRAW AGENTS ---
         this.agents.forEach(a => a.draw(this.ctx, this.viewMode));
 
-        // Update selected agent if we are interpolating (find new object reference by ID)
+        // Update selected agent tooltip
         if(this.selectedAgent) {
             const freshRef = this.agents.find(a => a.id === this.selectedAgent.id);
             if(freshRef) {
-                this.selectedAgent = freshRef; // update reference to moving dummy
+                this.selectedAgent = freshRef; 
                 ui.showTooltip(freshRef.x, freshRef.y, freshRef);
             } else {
-                // Agent died or disappeared
                 this.selectedAgent = null;
                 ui.selectedMode = false;
                 ui.hideTooltip();
             }
         }
 
+        // UI Updates
         const track = document.getElementById('timeline-track');
         const maxTime = Math.max(100, this.liveHead); 
         track.style.minWidth = (maxTime * this.pxPerUnit) + 'px';
