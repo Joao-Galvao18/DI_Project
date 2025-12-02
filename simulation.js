@@ -5,81 +5,67 @@ const ui = {
     tooltip: document.getElementById('tooltip'),
     selectedMode: false,
     uiVisible: true,
-    statsDOM: {}, // Store references to the counter DOM elements
+    statsDOM: {}, 
     
     init: () => {
         document.getElementById('menu-toggle').onclick = () => ui.sidebar.classList.add('open');
         document.getElementById('close-menu').onclick = () => ui.sidebar.classList.remove('open');
         
-        // Initialize Touch Drag System
+        ui.injectRockButton();
         ui.setupTouchDrag();
-
-        // Initialize Stats Bar
         ui.initStats();
     },
 
-    // --- NEW STATS DASHBOARD ---
+    injectRockButton: () => {
+        const container = document.getElementById('tab-species');
+        if(!container.querySelector('.rock-btn')) {
+            const div = document.createElement('div');
+            div.className = 'draggable-item rock-btn';
+            div.setAttribute('draggable', 'true');
+            div.onclick = () => ui.clickSpawn('rock');
+            div.innerHTML = `<i class="ph ph-hexagon icon" style="color:#94a3b8"></i> <span>Rock (Wall)</span>`;
+            div.addEventListener('dragstart', (e) => ui.drag(e, 'rock'));
+            container.appendChild(div);
+        }
+    },
+
     initStats: () => {
-        // Create the container
         const bar = document.createElement('div');
         bar.id = 'stats-bar';
         Object.assign(bar.style, {
-            position: 'absolute',
-            top: '20px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            display: 'flex',
-            gap: '15px',
-            background: 'rgba(15, 23, 42, 0.8)',
-            padding: '8px 20px',
-            borderRadius: '99px',
-            color: 'white',
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '14px',
-            fontWeight: 'bold',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
-            zIndex: '500',
-            pointerEvents: 'none', // Let clicks pass through
-            userSelect: 'none'
+            position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', gap: '15px', background: 'rgba(15, 23, 42, 0.8)', padding: '8px 20px',
+            borderRadius: '99px', color: 'white', fontFamily: 'Arial, sans-serif',
+            fontSize: '14px', fontWeight: 'bold', border: '1px solid rgba(56, 189, 248, 0.3)',
+            zIndex: '500', pointerEvents: 'none', userSelect: 'none'
         });
 
-        // Define types and icons
         const types = [
             { id: 'fish', icon: '🐟' },
             { id: 'shark', icon: '🦈' },
             { id: 'shrimp', icon: '🦐' },
             { id: 'algae', icon: '🌿' },
             { id: 'coral', icon: '🪸' },
-            { id: 'oil', icon: '🛢️' }
+            { id: 'rock', icon: '🪨', color: '#94a3b8' } 
         ];
 
         types.forEach(t => {
             const item = document.createElement('div');
-            item.innerHTML = `${t.icon} <span id="stat-${t.id}" style="color:#38bdf8">0</span>`;
+            const color = t.color || '#38bdf8';
+            item.innerHTML = `${t.icon} <span id="stat-${t.id}" style="color:${color}">0</span>`;
             bar.appendChild(item);
-            // Cache the reference for fast updates
             ui.statsDOM[t.id] = item.querySelector('span');
         });
-
         document.body.appendChild(bar);
     },
 
     updateStats: (agents) => {
-        // Reset counts
-        const counts = { fish: 0, shark: 0, shrimp: 0, algae: 0, coral: 0, oil: 0 };
-        
-        // Tally up
+        const counts = { fish: 0, shark: 0, shrimp: 0, algae: 0, coral: 0, rock: 0 };
         for(let agent of agents) {
-            if(counts[agent.type] !== undefined) {
-                counts[agent.type]++;
-            }
+            if(counts[agent.type] !== undefined) counts[agent.type]++;
         }
-
-        // Update DOM
         for (const [type, count] of Object.entries(counts)) {
-            if(ui.statsDOM[type]) {
-                ui.statsDOM[type].innerText = count;
-            }
+            if(ui.statsDOM[type]) ui.statsDOM[type].innerText = count;
         }
     },
 
@@ -129,11 +115,11 @@ const ui = {
         
         let status = `Health: ${Math.round(agent.health)}%`;
         if(agent.type === 'oil') status = "Pollutant (Toxic)";
+        if(agent.type === 'rock') status = "Obstacle";
         document.getElementById('tt-health').innerText = status;
     },
     hideTooltip: () => { ui.tooltip.classList.add('hidden'); },
 
-    // TIMELINE MARKERS
     addMarkerDOM: (label) => {
         const track = document.getElementById('timeline-track');
         const marker = document.createElement('div');
@@ -159,59 +145,67 @@ const ui = {
         }
     },
 
-    // --- TOUCH DRAG SUPPORT FOR MOBILE (SPAWNING) ---
     setupTouchDrag: () => {
-        const draggables = document.querySelectorAll('.draggable-item');
-        let activeDrag = null;
-        let dragType = null;
-        let ghost = null;
+        setTimeout(() => {
+            const draggables = document.querySelectorAll('.draggable-item');
+            let activeDrag = null;
+            let dragType = null;
+            let ghost = null;
 
-        draggables.forEach(item => {
-            const typeStr = item.getAttribute('ondragstart').match(/'([^']+)'/)[1];
-            
-            item.addEventListener('touchstart', (e) => {
-                dragType = typeStr;
-                activeDrag = item;
+            draggables.forEach(item => {
+                let typeStr = null;
+                const attr = item.getAttribute('ondragstart');
+                if(attr) {
+                    typeStr = attr.match(/'([^']+)'/)[1];
+                } else if (item.classList.contains('rock-btn')) {
+                    typeStr = 'rock';
+                }
+
+                if(!typeStr) return;
                 
-                ghost = item.cloneNode(true);
-                ghost.style.position = 'absolute';
-                ghost.style.opacity = '0.8';
-                ghost.style.pointerEvents = 'none';
-                ghost.style.zIndex = '1000';
-                ghost.style.width = item.offsetWidth + 'px';
-                ghost.style.background = '#1e293b';
-                ghost.style.border = '1px solid #38bdf8';
-                document.body.appendChild(ghost);
+                item.addEventListener('touchstart', (e) => {
+                    dragType = typeStr;
+                    activeDrag = item;
+                    ghost = item.cloneNode(true);
+                    ghost.style.position = 'absolute';
+                    ghost.style.opacity = '0.8';
+                    ghost.style.pointerEvents = 'none';
+                    ghost.style.zIndex = '1000';
+                    ghost.style.width = item.offsetWidth + 'px';
+                    ghost.style.background = '#1e293b';
+                    ghost.style.border = '1px solid #38bdf8';
+                    document.body.appendChild(ghost);
 
-                const touch = e.touches[0];
-                ghost.style.left = (touch.clientX - 20) + 'px';
-                ghost.style.top = (touch.clientY - 20) + 'px';
-            }, {passive: false});
-
-            item.addEventListener('touchmove', (e) => {
-                if(activeDrag && ghost) {
-                    e.preventDefault(); 
                     const touch = e.touches[0];
                     ghost.style.left = (touch.clientX - 20) + 'px';
                     ghost.style.top = (touch.clientY - 20) + 'px';
-                }
-            }, {passive: false});
+                }, {passive: false});
 
-            item.addEventListener('touchend', (e) => {
-                if(activeDrag && ghost) {
-                    const touch = e.changedTouches[0];
-                    const target = document.elementFromPoint(touch.clientX, touch.clientY);
-                    if(target && target.id === 'simCanvas') {
-                        const rect = target.getBoundingClientRect();
-                        sim.spawn(dragType, touch.clientX - rect.left, touch.clientY - rect.top);
+                item.addEventListener('touchmove', (e) => {
+                    if(activeDrag && ghost) {
+                        e.preventDefault(); 
+                        const touch = e.touches[0];
+                        ghost.style.left = (touch.clientX - 20) + 'px';
+                        ghost.style.top = (touch.clientY - 20) + 'px';
                     }
-                    ghost.remove();
-                    ghost = null;
-                    activeDrag = null;
-                    dragType = null;
-                }
+                }, {passive: false});
+
+                item.addEventListener('touchend', (e) => {
+                    if(activeDrag && ghost) {
+                        const touch = e.changedTouches[0];
+                        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                        if(target && target.id === 'simCanvas') {
+                            const rect = target.getBoundingClientRect();
+                            sim.spawn(dragType, touch.clientX - rect.left, touch.clientY - rect.top);
+                        }
+                        ghost.remove();
+                        ghost = null;
+                        activeDrag = null;
+                        dragType = null;
+                    }
+                });
             });
-        });
+        }, 100);
     }
 };
 
@@ -238,9 +232,9 @@ class Agent {
         if(type === 'fish') { this.icon = '🐟'; this.size = 24; this.speed = 2; this.vision = 150; }
         else if (type === 'shark') { this.icon = '🦈'; this.size = 40; this.speed = 3.5; this.vision = 250; }
         else if (type === 'shrimp') { this.icon = '🦐'; this.size = 18; this.speed = 1; this.vision = 100; }
-        else if (type === 'oil') { this.icon = '🛢️'; this.size = 20; this.speed = 0.2; this.vx *= 0.1; this.vy *= 0.1; }
         else if (type === 'algae') { this.icon = '🌿'; this.size = 15; this.speed = 0; this.vx=0; this.vy=0; }
         else if (type === 'coral') { this.icon = '🪸'; this.size = 30; this.speed = 0; this.vx=0; this.vy=0; }
+        else if (type === 'rock') { this.icon = '🪨'; this.size = 35; this.speed = 0; this.vx=0; this.vy=0; }
     }
 
     findNearest(agents, targetType, excludeAgent = null) {
@@ -261,6 +255,30 @@ class Agent {
     }
 
     update(bounds, env, allAgents, spawnCallback) {
+        // --- STATIC AGENTS ---
+        if(this.type === 'rock') return; 
+
+        // --- COLLISION WITH ROCKS (OBSTACLES) ---
+        for(let other of allAgents) {
+            if(other.type === 'rock') {
+                const dist = Math.hypot(this.x - other.x, this.y - other.y);
+                const minDist = (this.size + other.size) / 2; // Approximate radius
+                
+                if(dist < minDist) {
+                    const nx = (this.x - other.x) / dist;
+                    const ny = (this.y - other.y) / dist;
+                    const overlap = minDist - dist;
+                    this.x += nx * overlap;
+                    this.y += ny * overlap;
+                    const dot = this.vx * nx + this.vy * ny;
+                    this.vx = this.vx - 2 * dot * nx;
+                    this.vy = this.vy - 2 * dot * ny;
+                    this.vx *= 0.9;
+                    this.vy *= 0.9;
+                }
+            }
+        }
+
         // --- MOVEMENT & BEHAVIOR LOGIC ---
         if(this.type === 'fish') {
             this.health -= 0.01;
@@ -347,29 +365,17 @@ class Agent {
         }
 
         // --- REPRODUCTION LOGIC ---
-        // Conditions: Full Health (>95), Not Cooling Down, Find Mate nearby
         if(this.reproCooldown > 0) {
             this.reproCooldown--;
         } else if (['fish', 'shark', 'shrimp'].includes(this.type) && this.health >= 80) {
             const mateInfo = this.findNearest(allAgents, this.type);
-            
-            // Check if mate exists, is close enough to touch/interact, matches health criteria, and isn't on cooldown
             if (mateInfo.agent && mateInfo.dist < this.size * 1.5 && mateInfo.agent.health >= 95 && mateInfo.agent.reproCooldown <= 0) {
-                
-                // 50% Chance
                 if(Math.random() < 0.5) {
-                    // Successful Reproduction
-                    if(spawnCallback) {
-                        spawnCallback(this.type, this.x, this.y);
-                    }
-                    // Reset Cooldowns for both parents to prevent infinite spawning
+                    if(spawnCallback) spawnCallback(this.type, this.x, this.y);
                     this.reproCooldown = 400; 
                     mateInfo.agent.reproCooldown = 400;
-                    
-                    // Small visual kick to separate them
                     this.vx *= -1; this.vy *= -1;
                 } else {
-                    // Failed attempt, short cooldown to try again later
                     this.reproCooldown = 50;
                 }
             }
@@ -395,6 +401,7 @@ class Agent {
 
     draw(ctx, viewMode) {
         if(this.dead) return;
+        
         if(viewMode === 'heatmap') {
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.size, 0, Math.PI*2);
@@ -415,6 +422,11 @@ class Simulation {
     constructor() {
         this.canvas = document.getElementById('simCanvas');
         this.ctx = this.canvas.getContext('2d');
+        
+        // Background Map Canvas
+        this.bgCanvas = document.createElement('canvas');
+        this.bgCtx = this.bgCanvas.getContext('2d');
+        
         this.agents = [];
         this.env = { temp: 25, pollution: 0 };
         this.viewMode = 'standard';
@@ -427,9 +439,11 @@ class Simulation {
         this.time = 0; 
         this.liveHead = 0; 
         this.pxPerUnit = 10;
-        
-        // Scrubbing State
         this.isScrubbing = false;
+
+        // Map Randomness
+        this.mapOffsetX = 0;
+        this.mapOffsetY = 0;
 
         this.resize();
         window.addEventListener('resize', () => {
@@ -444,8 +458,78 @@ class Simulation {
     resize() {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
+        this.bgCanvas.width = window.innerWidth;
+        this.bgCanvas.height = window.innerHeight;
+        this.generateMap();
         const timelineContainer = document.getElementById('timeline-scroll-area');
         if(timelineContainer) this.pxPerUnit = timelineContainer.clientWidth / 100;
+    }
+
+    // --- PROCEDURAL MAP GENERATION (SMOOTH) ---
+    generateMap() {
+        const w = this.bgCanvas.width;
+        const h = this.bgCanvas.height;
+        const ctx = this.bgCtx;
+        
+        // 1. Base Layer
+        const gradient = ctx.createLinearGradient(0, 0, 0, h);
+        gradient.addColorStop(0, '#020617'); 
+        gradient.addColorStop(1, '#0f172a');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, w, h);
+
+        const scale = 300;
+        const getHeight = (x, y) => {
+            const nx = x + this.mapOffsetX;
+            const ny = y + this.mapOffsetY;
+            const v1 = Math.sin(nx/scale) * Math.cos(ny/scale);
+            const v2 = Math.sin((nx+ny)/(scale*1.5)) * 0.5;
+            const v3 = Math.cos((nx-ny)/(scale*2)) * 0.3;
+            return (v1 + v2 + v3 + 2) / 4; 
+        };
+
+        // 2. Draw Blurred Terrain (Blobs)
+        ctx.save();
+        ctx.filter = 'blur(30px)'; // Heavy blur for smooth gradients
+        
+        const step = 15; 
+        for(let y = 0; y < h; y += step) {
+            for(let x = 0; x < w; x += step) {
+                const val = getHeight(x, y);
+                // Draw blobs based on height
+                if(val > 0.6) {
+                    ctx.fillStyle = `rgba(30, 58, 138, ${val - 0.5})`; // Deep Blue Highlight
+                    ctx.beginPath();
+                    ctx.arc(x, y, step * 1.5, 0, Math.PI*2);
+                    ctx.fill();
+                }
+                if(val > 0.8) {
+                    ctx.fillStyle = `rgba(56, 189, 248, 0.2)`; // Light Blue Ridge
+                    ctx.beginPath();
+                    ctx.arc(x, y, step, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            }
+        }
+        ctx.restore();
+
+        // 3. Draw Sharp Contour Lines
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.beginPath();
+        
+        for(let y = 0; y < h; y += 8) {
+            for(let x = 0; x < w; x += 8) {
+                const val = getHeight(x, y);
+                if(Math.abs(val - 0.65) < 0.015 || Math.abs(val - 0.8) < 0.015) {
+                    ctx.moveTo(x, y);
+                    ctx.lineTo(x+2, y+2);
+                }
+            }
+        }
+        ctx.stroke();
+
+        this.getHeight = getHeight;
     }
 
     updateTimelineLayout() {
@@ -457,11 +541,7 @@ class Simulation {
             time: this.time,
             env: { ...this.env },
             agents: this.agents.map(a => ({ 
-                id: a.id,
-                type: a.type, 
-                x: a.x, 
-                y: a.y, 
-                health: a.health 
+                id: a.id, type: a.type, x: a.x, y: a.y, health: a.health 
             }))
         };
         this.history.push(snapshot);
@@ -499,11 +579,36 @@ class Simulation {
         
         const w = this.canvas.width, h = this.canvas.height;
         
+        // Randomize Map Seed
+        this.mapOffsetX = Math.random() * 10000;
+        this.mapOffsetY = Math.random() * 10000;
+        this.generateMap();
+
         this.env.temp = 25; this.env.pollution = 0;
+        
+        // --- ADDED DEFAULT SHARKS HERE ---
+        for(let i=0; i<2; i++) this.agents.push(new Agent('shark', Math.random()*w, Math.random()*h));
+
         for(let i=0; i<15; i++) this.agents.push(new Agent('fish', Math.random()*w, Math.random()*h));
         for(let i=0; i<5; i++) this.agents.push(new Agent('shrimp', Math.random()*w, Math.random()*h));
         for(let i=0; i<20; i++) this.agents.push(new Agent('algae', Math.random()*w, Math.random()*h));
         for(let i=0; i<5; i++) this.agents.push(new Agent('coral', Math.random()*w, Math.random()*h));
+
+        // Spawn Rocks
+        for(let i=0; i<8; i++) {
+            let placed = false;
+            let attempts = 0;
+            while(!placed && attempts < 100) {
+                const rx = Math.random() * w;
+                const ry = Math.random() * h;
+                if(this.getHeight(rx, ry) > 0.7) { 
+                    this.agents.push(new Agent('rock', rx, ry));
+                    placed = true;
+                }
+                attempts++;
+            }
+            if(!placed) this.agents.push(new Agent('rock', Math.random()*w, Math.random()*h));
+        }
         
         this.syncSliders();
         this.recordState();
@@ -548,28 +653,21 @@ class Simulation {
         if (clickedTime > this.liveHead) clickedTime = this.liveHead;
 
         this.time = clickedTime;
-        
-        // Update Visuals
         document.getElementById('timeline-fill').style.width = (this.time * this.pxPerUnit) + 'px';
 
-        // Check if we are in review mode or live
         if (Math.abs(this.time - this.liveHead) > 0.5) {
-            // We are dragging in the past
             this.isReviewing = true;
-            this.isPlaying = false; // Pause immediately while dragging
+            this.isPlaying = false; 
             document.getElementById('btn-play').innerHTML = '<i class="ph ph-play"></i>';
             ui.setReviewMode(true);
-            this.applyInterpolation(); // Real-time visual update
+            this.applyInterpolation(); 
         } else {
-            // We dragged to the end -> Go Live!
             this.goLive();
         }
     }
 
     goLive() {
-        // Prevent Spam: capture state before resetting it
         const wasReviewing = this.isReviewing;
-        
         this.isReviewing = false;
         ui.setReviewMode(false);
         const last = this.history[this.history.length-1];
@@ -581,8 +679,6 @@ class Simulation {
         }
         this.isPlaying = true;
         document.getElementById('btn-play').innerHTML = '<i class="ph ph-pause"></i>';
-        
-        // Only show toast if we actually transitioned from Review Mode
         if(wasReviewing) ui.showToast("🔴 LIVE");
     }
 
@@ -636,39 +732,19 @@ class Simulation {
             if(!hovered) { ui.hideTooltip(); this.canvas.style.cursor = 'default'; }
         });
 
-        // --- TIMELINE DRAG EVENTS ---
         const track = document.getElementById('timeline-track');
-
-        // Start Dragging
-        const startDrag = (e) => {
-            this.isScrubbing = true;
-            this.scrub(e); // Initial jump
-        };
-
+        const startDrag = (e) => { this.isScrubbing = true; this.scrub(e); };
         track.addEventListener('mousedown', startDrag);
         track.addEventListener('touchstart', startDrag, {passive: false});
 
-        // Continue Dragging (Global)
-        const moveDrag = (e) => {
-            if(this.isScrubbing) {
-                if(e.type === 'touchmove') e.preventDefault(); // Stop scrolling
-                this.scrub(e);
-            }
-        };
-
+        const moveDrag = (e) => { if(this.isScrubbing) { if(e.type === 'touchmove') e.preventDefault(); this.scrub(e); } };
         window.addEventListener('mousemove', moveDrag);
         window.addEventListener('touchmove', moveDrag, {passive: false});
 
-        // End Dragging (Global)
-        const endDrag = () => {
-            this.isScrubbing = false;
-        };
-
+        const endDrag = () => { this.isScrubbing = false; };
         window.addEventListener('mouseup', endDrag);
         window.addEventListener('touchend', endDrag);
 
-
-        // --- SLIDER EVENTS ---
         document.getElementById('slider-temp').addEventListener('input', e => {
             if(this.isReviewing) return;
             this.env.temp = parseInt(e.target.value);
@@ -726,11 +802,28 @@ class Simulation {
     loop() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        const r = this.env.pollution * 1.5;
-        const g = Math.max(50, 100 - (this.env.pollution));
-        const b = Math.max(50, 200 - (this.env.pollution * 2));
-        this.ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-        this.ctx.fillRect(0,0, this.canvas.width, this.canvas.height);
+        // DRAW PRE-RENDERED MAP
+        this.ctx.drawImage(this.bgCanvas, 0, 0);
+
+        // --- DYNAMIC COLOR OVERLAYS ---
+        this.ctx.save();
+        
+        // Temperature Overlay (Reddish-Blue)
+        if(this.env.temp > 25) {
+            const heat = (this.env.temp - 25) / 10; // Normalize 0 to 1
+            this.ctx.fillStyle = `rgba(255, 50, 20, ${heat * 0.4})`; // Red Tint
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+
+        // Pollution Overlay (Purple)
+        if(this.env.pollution > 0) {
+            const tox = this.env.pollution / 100;
+            this.ctx.fillStyle = `rgba(100, 0, 150, ${tox * 0.6})`; // Purple Tint
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+        
+        this.ctx.restore();
+        // ------------------------------
 
         if(this.isPlaying) {
             if(!this.isReviewing) {
@@ -741,7 +834,6 @@ class Simulation {
                 if(Math.floor(this.time) > Math.floor(this.time - 0.05)) { this.recordState(); }
 
                 this.agents.forEach((a, i) => {
-                    // Pass spawn callback to update function
                     a.update(
                         {width: this.canvas.width, height: this.canvas.height}, 
                         this.env, 
@@ -757,7 +849,6 @@ class Simulation {
                 const scrollArea = document.getElementById('timeline-scroll-area');
                 if(scrollArea) scrollArea.scrollLeft = scrollArea.scrollWidth;
                 
-                // Update the stats bar every frame (or you could throttle this)
                 ui.updateStats(this.agents);
             } 
             else {
@@ -766,7 +857,6 @@ class Simulation {
             }
         }
 
-        // Apply interpolation IF reviewing OR scrubbing
         if(this.isReviewing || this.isScrubbing) this.applyInterpolation();
         
         this.agents.forEach(a => a.draw(this.ctx, this.viewMode));
