@@ -10,7 +10,7 @@ const ui = {
         document.getElementById('menu-toggle').onclick = () => ui.sidebar.classList.add('open');
         document.getElementById('close-menu').onclick = () => ui.sidebar.classList.remove('open');
         
-        // Initialize Touch Drag System
+        // Initialize Touch Drag System (For spawning items)
         ui.setupTouchDrag();
     },
 
@@ -90,7 +90,7 @@ const ui = {
         }
     },
 
-    // --- TOUCH DRAG SUPPORT FOR MOBILE ---
+    // --- TOUCH DRAG SUPPORT FOR MOBILE (SPAWNING) ---
     setupTouchDrag: () => {
         const draggables = document.querySelectorAll('.draggable-item');
         let activeDrag = null;
@@ -98,18 +98,12 @@ const ui = {
         let ghost = null;
 
         draggables.forEach(item => {
-            // Extract type from onclick attribute just for safety, or we parse it manually
-            // We'll rely on the attribute we set below
             const typeStr = item.getAttribute('ondragstart').match(/'([^']+)'/)[1];
             
             item.addEventListener('touchstart', (e) => {
-                // Prevent sidebar scrolling while dragging an item
-                // But allow scrolling if we aren't moving much? 
-                // Simple approach: Lock if moving sideways, but for now we just capture.
                 dragType = typeStr;
                 activeDrag = item;
                 
-                // Create visual ghost
                 ghost = item.cloneNode(true);
                 ghost.style.position = 'absolute';
                 ghost.style.opacity = '0.8';
@@ -127,7 +121,7 @@ const ui = {
 
             item.addEventListener('touchmove', (e) => {
                 if(activeDrag && ghost) {
-                    e.preventDefault(); // Stop screen scrolling
+                    e.preventDefault(); 
                     const touch = e.touches[0];
                     ghost.style.left = (touch.clientX - 20) + 'px';
                     ghost.style.top = (touch.clientY - 20) + 'px';
@@ -138,14 +132,10 @@ const ui = {
                 if(activeDrag && ghost) {
                     const touch = e.changedTouches[0];
                     const target = document.elementFromPoint(touch.clientX, touch.clientY);
-                    
-                    // Check if dropped on Canvas
                     if(target && target.id === 'simCanvas') {
                         const rect = target.getBoundingClientRect();
                         sim.spawn(dragType, touch.clientX - rect.left, touch.clientY - rect.top);
                     }
-                    
-                    // Cleanup
                     ghost.remove();
                     ghost = null;
                     activeDrag = null;
@@ -159,7 +149,7 @@ const ui = {
 /* --- SIMULATION ENGINE WITH AI --- */
 class Agent {
     constructor(type, x, y, health=100, id=null) {
-        this.id = id || Math.random().toString(36).substr(2, 9); // Unique ID for interpolation
+        this.id = id || Math.random().toString(36).substr(2, 9);
         this.type = type;
         this.x = x;
         this.y = y;
@@ -168,13 +158,11 @@ class Agent {
         this.vy = (Math.random() - 0.5) * 2;
         this.dead = false;
         
-        // Coral AI
         this.coralTimer = 0;    
         this.coralCooldown = 0; 
         this.lastCoral = null; 
         this.currentCoral = null; 
         
-        // Restore Emoji Icons
         if(type === 'fish') { this.icon = '🐟'; this.size = 24; this.speed = 2; this.vision = 150; }
         else if (type === 'shark') { this.icon = '🦈'; this.size = 40; this.speed = 3.5; this.vision = 250; }
         else if (type === 'shrimp') { this.icon = '🦐'; this.size = 18; this.speed = 1; this.vision = 100; }
@@ -201,18 +189,13 @@ class Agent {
     }
 
     update(bounds, env, allAgents) {
-        
-        // --- FISH LOGIC ---
         if(this.type === 'fish') {
             this.health -= 0.01;
             if(env.pollution > 20) this.health -= 0.1;
-
             const predator = this.findNearest(allAgents, 'shark');
-            
             if (predator.agent && predator.dist < 100) {
                 if(this.currentCoral) this.lastCoral = this.currentCoral; 
-                this.coralTimer = 0; 
-                this.currentCoral = null;
+                this.coralTimer = 0; this.currentCoral = null;
                 const dx = this.x - predator.agent.x;
                 const dy = this.y - predator.agent.y;
                 this.vx += (dx / predator.dist) * 0.5; 
@@ -220,34 +203,25 @@ class Agent {
             } 
             else if (this.health < 50) {
                 if(this.currentCoral) this.lastCoral = this.currentCoral; 
-                this.coralTimer = 0; 
-                this.currentCoral = null;
+                this.coralTimer = 0; this.currentCoral = null;
                 const food = this.findNearest(allAgents, 'shrimp');
                 if (food.agent) {
                     const dx = food.agent.x - this.x;
                     const dy = food.agent.y - this.y;
                     this.vx += (dx / food.dist) * 0.1;
                     this.vy += (dy / food.dist) * 0.1;
-                    if (food.dist < 20) {
-                        food.agent.dead = true;
-                        this.health = 100; 
-                    }
+                    if (food.dist < 20) { food.agent.dead = true; this.health = 100; }
                 }
             }
             else {
                 if (this.coralTimer > 0) {
                     this.coralTimer--;
-                    this.vx *= 0.9; 
-                    this.vy *= 0.9;
-                    this.vx += (Math.random() - 0.5) * 0.3; 
-                    this.vy += (Math.random() - 0.5) * 0.3;
-                    
+                    this.vx *= 0.9; this.vy *= 0.9;
+                    this.vx += (Math.random() - 0.5) * 0.3; this.vy += (Math.random() - 0.5) * 0.3;
                     if(this.coralTimer === 0) {
-                        this.lastCoral = this.currentCoral; 
-                        this.currentCoral = null;
+                        this.lastCoral = this.currentCoral; this.currentCoral = null;
                         this.coralCooldown = 600; 
-                        this.vx += (Math.random() - 0.5) * 4;
-                        this.vy += (Math.random() - 0.5) * 4;
+                        this.vx += (Math.random() - 0.5) * 4; this.vy += (Math.random() - 0.5) * 4;
                     }
                 } 
                 else if (this.coralCooldown <= 0) {
@@ -257,25 +231,16 @@ class Agent {
                         const dy = coral.agent.y - this.y;
                         this.vx += (dx / coral.dist) * 0.05;
                         this.vy += (dy / coral.dist) * 0.05;
-                        
-                        if(coral.dist < 40) {
-                            this.coralTimer = 100; 
-                            this.currentCoral = coral.agent;
-                        }
+                        if(coral.dist < 40) { this.coralTimer = 100; this.currentCoral = coral.agent; }
                     }
                 }
-                
                 if (this.coralCooldown > 0) this.coralCooldown--;
             }
         }
-
-        // --- ALGAE ---
         else if(this.type === 'algae') {
             if(env.temp > 30) this.health -= 0.5;
             else if(env.temp < 28 && env.pollution < 40 && this.health < 100) this.health += 0.1;
         }
-
-        // --- SHRIMP ---
         else if(this.type === 'shrimp') {
             this.health -= 0.005; 
             if(this.health < 80) { 
@@ -291,8 +256,6 @@ class Agent {
                 this.vx += (Math.random() - 0.5); this.vy += (Math.random() - 0.5);
             }
         }
-
-        // --- SHARK ---
         else if (this.type === 'shark') {
             this.health -= 0.03; 
             if (this.health < 70) {
@@ -310,7 +273,6 @@ class Agent {
             }
         }
 
-        // Physics
         const v = Math.hypot(this.vx, this.vy);
         if (v > this.speed && this.speed > 0) {
             this.vx = (this.vx / v) * this.speed;
@@ -337,7 +299,6 @@ class Agent {
             ctx.fillStyle = this.type === 'oil' ? 'black' : 'rgba(0, 255, 100, 0.4)';
             ctx.fill();
         } else {
-            // Reverted to Emojis as requested
             ctx.font = `${this.size}px Arial`;
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
@@ -363,7 +324,10 @@ class Simulation {
         this.markers = []; 
         this.time = 0; 
         this.liveHead = 0; 
-        this.pxPerUnit = 10; 
+        this.pxPerUnit = 10;
+        
+        // Scrubbing State
+        this.isScrubbing = false;
 
         this.resize();
         window.addEventListener('resize', () => {
@@ -386,7 +350,6 @@ class Simulation {
         this.markers.forEach(m => { m.dom.style.left = (m.time * this.pxPerUnit) + 'px'; });
     }
 
-    // --- SNAPSHOT SYSTEM ---
     recordState() {
         const snapshot = {
             time: this.time,
@@ -470,30 +433,41 @@ class Simulation {
     }
 
     scrub(e) {
-        if (e.type === 'touchmove' || e.type === 'touchstart') e.preventDefault();
         const track = document.getElementById('timeline-track');
         const rect = track.getBoundingClientRect();
+        
         let clientX = e.clientX;
         if (e.touches && e.touches.length > 0) clientX = e.touches[0].clientX;
+
         let clickInsideTrack = clientX - rect.left;
         if (clickInsideTrack < 0) clickInsideTrack = 0;
+
         let clickedTime = clickInsideTrack / this.pxPerUnit;
         if (clickedTime > this.liveHead) clickedTime = this.liveHead;
+
         this.time = clickedTime;
         
+        // Update Visuals
+        document.getElementById('timeline-fill').style.width = (this.time * this.pxPerUnit) + 'px';
+
+        // Check if we are in review mode or live
         if (Math.abs(this.time - this.liveHead) > 0.5) {
+            // We are dragging in the past
             this.isReviewing = true;
-            this.isPlaying = false; 
+            this.isPlaying = false; // Pause immediately while dragging
             document.getElementById('btn-play').innerHTML = '<i class="ph ph-play"></i>';
             ui.setReviewMode(true);
-            this.applyInterpolation();
+            this.applyInterpolation(); // Real-time visual update
         } else {
+            // We dragged to the end -> Go Live!
             this.goLive();
         }
-        document.getElementById('timeline-fill').style.width = (this.time * this.pxPerUnit) + 'px';
     }
 
     goLive() {
+        // Prevent Spam: capture state before resetting it
+        const wasReviewing = this.isReviewing;
+        
         this.isReviewing = false;
         ui.setReviewMode(false);
         const last = this.history[this.history.length-1];
@@ -505,7 +479,9 @@ class Simulation {
         }
         this.isPlaying = true;
         document.getElementById('btn-play').innerHTML = '<i class="ph ph-pause"></i>';
-        ui.showToast("🔴 LIVE");
+        
+        // Only show toast if we actually transitioned from Review Mode
+        if(wasReviewing) ui.showToast("🔴 LIVE");
     }
 
     bindEvents() {
@@ -558,11 +534,39 @@ class Simulation {
             if(!hovered) { ui.hideTooltip(); this.canvas.style.cursor = 'default'; }
         });
 
+        // --- TIMELINE DRAG EVENTS ---
         const track = document.getElementById('timeline-track');
-        track.addEventListener('click', e => this.scrub(e));
-        track.addEventListener('touchstart', e => this.scrub(e), {passive: false});
-        track.addEventListener('touchmove', e => this.scrub(e), {passive: false});
 
+        // Start Dragging
+        const startDrag = (e) => {
+            this.isScrubbing = true;
+            this.scrub(e); // Initial jump
+        };
+
+        track.addEventListener('mousedown', startDrag);
+        track.addEventListener('touchstart', startDrag, {passive: false});
+
+        // Continue Dragging (Global)
+        const moveDrag = (e) => {
+            if(this.isScrubbing) {
+                if(e.type === 'touchmove') e.preventDefault(); // Stop scrolling
+                this.scrub(e);
+            }
+        };
+
+        window.addEventListener('mousemove', moveDrag);
+        window.addEventListener('touchmove', moveDrag, {passive: false});
+
+        // End Dragging (Global)
+        const endDrag = () => {
+            this.isScrubbing = false;
+        };
+
+        window.addEventListener('mouseup', endDrag);
+        window.addEventListener('touchend', endDrag);
+
+
+        // --- SLIDER EVENTS ---
         document.getElementById('slider-temp').addEventListener('input', e => {
             if(this.isReviewing) return;
             this.env.temp = parseInt(e.target.value);
@@ -650,7 +654,9 @@ class Simulation {
             }
         }
 
-        if(this.isReviewing) this.applyInterpolation();
+        // Apply interpolation IF reviewing OR scrubbing
+        if(this.isReviewing || this.isScrubbing) this.applyInterpolation();
+        
         this.agents.forEach(a => a.draw(this.ctx, this.viewMode));
 
         if(this.selectedAgent) {
