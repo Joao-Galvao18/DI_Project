@@ -106,6 +106,7 @@ class Agent {
         this.lastCoral = null; 
         this.currentCoral = null; 
         
+        // Restore Emoji Icons
         if(type === 'fish') { this.icon = '🐟'; this.size = 24; this.speed = 2; this.vision = 150; }
         else if (type === 'shark') { this.icon = '🦈'; this.size = 40; this.speed = 3.5; this.vision = 250; }
         else if (type === 'shrimp') { this.icon = '🦐'; this.size = 18; this.speed = 1; this.vision = 100; }
@@ -268,6 +269,7 @@ class Agent {
             ctx.fillStyle = this.type === 'oil' ? 'black' : 'rgba(0, 255, 100, 0.4)';
             ctx.fill();
         } else {
+            // Reverted to Emojis as requested
             ctx.font = `${this.size}px Arial`;
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
@@ -318,7 +320,6 @@ class Simulation {
 
     // --- SNAPSHOT SYSTEM ---
     recordState() {
-        // Save ID to track agent continuity
         const snapshot = {
             time: this.time,
             env: { ...this.env },
@@ -365,7 +366,6 @@ class Simulation {
         
         const w = this.canvas.width, h = this.canvas.height;
         
-        // Initial Population
         this.env.temp = 25; this.env.pollution = 0;
         for(let i=0; i<15; i++) this.agents.push(new Agent('fish', Math.random()*w, Math.random()*h));
         for(let i=0; i<5; i++) this.agents.push(new Agent('shrimp', Math.random()*w, Math.random()*h));
@@ -378,7 +378,6 @@ class Simulation {
         const scrollArea = document.getElementById('timeline-scroll-area');
         if(scrollArea) scrollArea.scrollLeft = 0;
         
-        // Ensure "Go Live" state is set correctly
         this.goLive();
     }
 
@@ -398,38 +397,31 @@ class Simulation {
 
     togglePlay() {
         this.isPlaying = !this.isPlaying;
-        document.getElementById('btn-play').innerText = this.isPlaying ? "⏸" : "▶";
+        const icon = this.isPlaying ? '<i class="ph ph-pause"></i>' : '<i class="ph ph-play"></i>';
+        document.getElementById('btn-play').innerHTML = icon;
     }
 
     scrub(e) {
         if (e.type === 'touchmove' || e.type === 'touchstart') e.preventDefault();
-
         const track = document.getElementById('timeline-track');
         const rect = track.getBoundingClientRect();
-        
         let clientX = e.clientX;
         if (e.touches && e.touches.length > 0) clientX = e.touches[0].clientX;
-
         let clickInsideTrack = clientX - rect.left;
         if (clickInsideTrack < 0) clickInsideTrack = 0;
-
         let clickedTime = clickInsideTrack / this.pxPerUnit;
         if (clickedTime > this.liveHead) clickedTime = this.liveHead;
-
         this.time = clickedTime;
         
         if (Math.abs(this.time - this.liveHead) > 0.5) {
             this.isReviewing = true;
             this.isPlaying = false; 
-            document.getElementById('btn-play').innerText = "▶";
+            document.getElementById('btn-play').innerHTML = '<i class="ph ph-play"></i>';
             ui.setReviewMode(true);
-            
-            // IMMEDIATE UPDATE: Interpolate right now so the user sees changes while dragging
             this.applyInterpolation();
         } else {
             this.goLive();
         }
-
         document.getElementById('timeline-fill').style.width = (this.time * this.pxPerUnit) + 'px';
     }
 
@@ -440,12 +432,11 @@ class Simulation {
         if(last) {
             this.time = last.time;
             this.env = { ...last.env };
-            // Restore full agent state from last snapshot to continue simulation
             this.agents = last.agents.map(d => new Agent(d.type, d.x, d.y, d.health, d.id));
             this.syncSliders();
         }
         this.isPlaying = true;
-        document.getElementById('btn-play').innerText = "⏸";
+        document.getElementById('btn-play').innerHTML = '<i class="ph ph-pause"></i>';
         ui.showToast("🔴 LIVE");
     }
 
@@ -484,7 +475,6 @@ class Simulation {
 
         this.canvas.addEventListener('mousemove', e => {
             if(ui.selectedMode) return; 
-            
             const rect = this.canvas.getBoundingClientRect();
             const mx = e.clientX - rect.left, my = e.clientY - rect.top;
             let hovered = false;
@@ -505,26 +495,24 @@ class Simulation {
         track.addEventListener('touchstart', e => this.scrub(e), {passive: false});
         track.addEventListener('touchmove', e => this.scrub(e), {passive: false});
 
-        const tempSlider = document.getElementById('slider-temp');
-        tempSlider.addEventListener('input', e => {
+        document.getElementById('slider-temp').addEventListener('input', e => {
             if(this.isReviewing) return;
             this.env.temp = parseInt(e.target.value);
             document.getElementById('val-temp').innerText = this.env.temp + "°C";
         });
-        tempSlider.addEventListener('change', e => {
+        document.getElementById('slider-temp').addEventListener('change', e => {
             if(this.isReviewing) return;
             ui.showToast(`Temperature set to ${this.env.temp}°C`);
             this.addMarker(this.time, `Temp: ${this.env.temp}°C`);
             this.recordState();
         });
 
-        const polSlider = document.getElementById('slider-pol');
-        polSlider.addEventListener('input', e => {
+        document.getElementById('slider-pol').addEventListener('input', e => {
             if(this.isReviewing) return;
             this.env.pollution = parseInt(e.target.value);
             document.getElementById('val-pol').innerText = this.env.pollution + "%";
         });
-        polSlider.addEventListener('change', e => {
+        document.getElementById('slider-pol').addEventListener('change', e => {
             if(this.isReviewing) return;
             ui.showToast(`Pollution set to ${this.env.pollution}%`);
             this.addMarker(this.time, `Pollution: ${this.env.pollution}%`);
@@ -532,9 +520,7 @@ class Simulation {
         });
     }
 
-    // Helper to calculate agent positions based on 'this.time' (Interpolation)
     applyInterpolation() {
-        // 1. Find the two snapshots surrounding current time
         let startIndex = -1;
         for(let i=0; i<this.history.length-1; i++) {
             if(this.history[i].time <= this.time && this.history[i+1].time > this.time) {
@@ -542,63 +528,43 @@ class Simulation {
                 break;
             }
         }
-
         if(startIndex !== -1) {
             const snapA = this.history[startIndex];
             const snapB = this.history[startIndex+1];
-            
-            // Calculate ratio (0.0 to 1.0) between snapshots
             const t = (this.time - snapA.time) / (snapB.time - snapA.time);
-            
-            // Map Agents for visual frame
             const tempAgents = [];
             snapA.agents.forEach(aStart => {
                 const aEnd = snapB.agents.find(a => a.id === aStart.id);
                 if(aEnd) {
-                    // Interpolate position
                     const lerpX = aStart.x + (aEnd.x - aStart.x) * t;
                     const lerpY = aStart.y + (aEnd.y - aStart.y) * t;
-                    
-                    // Create visual dummy agent
                     const dummy = new Agent(aStart.type, lerpX, lerpY, aStart.health, aStart.id);
-                    dummy.dead = false; // ensure visible
+                    dummy.dead = false; 
                     tempAgents.push(dummy);
                 }
             });
-            
             this.agents = tempAgents;
-            // Sync environment sliders
             this.env = snapA.env; 
             this.syncSliders();
         }
     }
 
-    // --- MAIN LOOP ---
     loop() {
-        // Clear Canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Draw Background
         const r = this.env.pollution * 1.5;
         const g = Math.max(50, 100 - (this.env.pollution));
         const b = Math.max(50, 200 - (this.env.pollution * 2));
         this.ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
         this.ctx.fillRect(0,0, this.canvas.width, this.canvas.height);
 
-        // --- UPDATE LOGIC ---
         if(this.isPlaying) {
             if(!this.isReviewing) {
-                // LIVE MODE: Advance physics
                 this.time += 0.05; 
-                
-                // Logic
                 if(this.env.temp < 28 && this.env.pollution < 40 && Math.random() < 0.01) {
                     this.agents.push(new Agent('algae', Math.random()*this.canvas.width, Math.random()*this.canvas.height));
                 }
-
-                if(Math.floor(this.time) > Math.floor(this.time - 0.05)) {
-                    this.recordState();
-                }
+                if(Math.floor(this.time) > Math.floor(this.time - 0.05)) { this.recordState(); }
 
                 this.agents.forEach((a, i) => {
                     a.update({width: this.canvas.width, height: this.canvas.height}, this.env, this.agents);
@@ -607,46 +573,31 @@ class Simulation {
                         this.agents.splice(i, 1);
                     }
                 });
-
                 const scrollArea = document.getElementById('timeline-scroll-area');
                 if(scrollArea) scrollArea.scrollLeft = scrollArea.scrollWidth;
             } 
             else {
-                // REPLAY PLAYBACK: Advance time only
                 this.time += 0.05;
-                if(this.time >= this.liveHead) {
-                    this.goLive();
-                }
+                if(this.time >= this.liveHead) { this.goLive(); }
             }
         }
 
-        // --- APPLY REPLAY STATE ---
-        // We do this every frame if reviewing (whether playing OR paused)
-        if(this.isReviewing) {
-            this.applyInterpolation();
-        }
-
-        // --- DRAW AGENTS ---
+        if(this.isReviewing) this.applyInterpolation();
         this.agents.forEach(a => a.draw(this.ctx, this.viewMode));
 
-        // Update selected agent tooltip
         if(this.selectedAgent) {
             const freshRef = this.agents.find(a => a.id === this.selectedAgent.id);
             if(freshRef) {
                 this.selectedAgent = freshRef; 
                 ui.showTooltip(freshRef.x, freshRef.y, freshRef);
             } else {
-                this.selectedAgent = null;
-                ui.selectedMode = false;
-                ui.hideTooltip();
+                this.selectedAgent = null; ui.selectedMode = false; ui.hideTooltip();
             }
         }
 
-        // UI Updates
         const track = document.getElementById('timeline-track');
         const maxTime = Math.max(100, this.liveHead); 
         track.style.minWidth = (maxTime * this.pxPerUnit) + 'px';
-
         document.getElementById('timeline-buffer').style.width = (this.liveHead * this.pxPerUnit) + 'px';
         document.getElementById('timeline-fill').style.width = (this.time * this.pxPerUnit) + 'px';
 
