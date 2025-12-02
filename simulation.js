@@ -57,7 +57,6 @@ const ui = {
         
         let status = `Health: ${Math.round(agent.health)}%`;
         if(agent.type === 'oil') status = "Pollutant (Toxic)";
-        // Shrimp now show health correctly
         document.getElementById('tt-health').innerText = status;
     },
     hideTooltip: () => { ui.tooltip.classList.add('hidden'); },
@@ -91,7 +90,8 @@ const ui = {
 
 /* --- SIMULATION ENGINE WITH AI --- */
 class Agent {
-    constructor(type, x, y, health=100) {
+    constructor(type, x, y, health=100, id=null) {
+        this.id = id || Math.random().toString(36).substr(2, 9); // Unique ID for interpolation
         this.type = type;
         this.x = x;
         this.y = y;
@@ -206,9 +206,9 @@ class Agent {
             else if(env.temp < 28 && env.pollution < 40 && this.health < 100) this.health += 0.1;
         }
 
-        // --- SHRIMP (Health Logic Active) ---
+        // --- SHRIMP ---
         else if(this.type === 'shrimp') {
-            this.health -= 0.005; // Hunger decay
+            this.health -= 0.005; 
             if(this.health < 80) { 
                 const food = this.findNearest(allAgents, 'algae');
                 if(food.agent) {
@@ -310,18 +310,26 @@ class Simulation {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
         const timelineContainer = document.getElementById('timeline-scroll-area');
-        this.pxPerUnit = timelineContainer.clientWidth / 100;
+        if(timelineContainer) this.pxPerUnit = timelineContainer.clientWidth / 100;
     }
 
     updateTimelineLayout() {
         this.markers.forEach(m => { m.dom.style.left = (m.time * this.pxPerUnit) + 'px'; });
     }
 
+    // --- SNAPSHOT SYSTEM ---
     recordState() {
+        // Save ID to track agent continuity
         const snapshot = {
             time: this.time,
             env: { ...this.env },
-            agents: this.agents.map(a => ({ type: a.type, x: a.x, y: a.y, health: a.health }))
+            agents: this.agents.map(a => ({ 
+                id: a.id,
+                type: a.type, 
+                x: a.x, 
+                y: a.y, 
+                health: a.health 
+            }))
         };
         this.history.push(snapshot);
         this.liveHead = this.time;
@@ -346,7 +354,6 @@ class Simulation {
         this.spawn(type, x, y);
     }
 
-    // DEFAULT WORLD (Replaced loadPreset)
     initWorld() {
         this.agents = [];
         this.time = 0; 
@@ -355,7 +362,6 @@ class Simulation {
         this.markers = [];
         this.selectedAgent = null;
         ui.hideTooltip();
-        this.goLive();
         ui.clearTimeline(); 
         
         const w = this.canvas.width, h = this.canvas.height;
@@ -370,7 +376,11 @@ class Simulation {
         this.syncSliders();
         this.recordState();
         this.addMarker(0, "Start");
-        document.getElementById('timeline-scroll-area').scrollLeft = 0;
+        const scrollArea = document.getElementById('timeline-scroll-area');
+        if(scrollArea) scrollArea.scrollLeft = 0;
+        
+        // Ensure "Go Live" state is set correctly
+        this.goLive();
     }
 
     syncSliders() {
@@ -420,19 +430,6 @@ class Simulation {
             this.isPlaying = false; 
             document.getElementById('btn-play').innerText = "▶";
             ui.setReviewMode(true);
-            
-            let snapshot = this.history[0];
-            for(let i=this.history.length-1; i>=0; i--) {
-                if(this.history[i].time <= clickedTime) {
-                    snapshot = this.history[i];
-                    break;
-                }
-            }
-            if(snapshot) {
-                this.env = { ...snapshot.env };
-                this.agents = snapshot.agents.map(d => new Agent(d.type, d.x, d.y, d.health));
-                this.syncSliders();
-            }
             ui.showToast(`Rewound to ${Math.round(this.time)}`);
         } else {
             this.goLive();
@@ -448,7 +445,8 @@ class Simulation {
         if(last) {
             this.time = last.time;
             this.env = { ...last.env };
-            this.agents = last.agents.map(d => new Agent(d.type, d.x, d.y, d.health));
+            // Restore full agent state from last snapshot to continue simulation
+            this.agents = last.agents.map(d => new Agent(d.type, d.x, d.y, d.health, d.id));
             this.syncSliders();
         }
         this.isPlaying = true;
@@ -466,7 +464,6 @@ class Simulation {
         });
 
         this.canvas.addEventListener('click', e => {
-            if(this.isReviewing) return;
             const rect = this.canvas.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
             const clickY = e.clientY - rect.top;
@@ -540,12 +537,15 @@ class Simulation {
         });
     }
 
+    // --- MAIN LOOP ---
     loop() {
         if(this.isPlaying) {
+            
+            // --- LIVE MODE ---
             if(!this.isReviewing) {
                 this.time += 0.05 * this.speed; 
                 
-                // Natural Algae Growth
+                // Logic
                 if(this.env.temp < 28 && this.env.pollution < 40 && Math.random() < 0.01) {
                     this.agents.push(new Agent('algae', Math.random()*this.canvas.width, Math.random()*this.canvas.height));
                 }
@@ -563,22 +563,62 @@ class Simulation {
                 });
 
                 const scrollArea = document.getElementById('timeline-scroll-area');
-                scrollArea.scrollLeft = scrollArea.scrollWidth;
+                if(scrollArea) scrollArea.scrollLeft = scrollArea.scrollWidth;
             } 
+            
+            // --- REPLAY MODE (Interpolated) ---
             else {
                 this.time += 0.05 * this.speed;
+
+                // Check if we hit live head
                 if(this.time >= this.liveHead) {
                     this.goLive();
                     requestAnimationFrame(() => this.loop());
                     return; 
                 }
-                this.agents.forEach((a, i) => {
-                    a.update({width: this.canvas.width, height: this.canvas.height}, this.env, this.agents);
-                    if(a.dead) this.agents.splice(i, 1);
-                });
+
+                // INTERPOLATION LOGIC
+                // 1. Find the two snapshots surrounding current time
+                let startIndex = -1;
+                for(let i=0; i<this.history.length-1; i++) {
+                    if(this.history[i].time <= this.time && this.history[i+1].time > this.time) {
+                        startIndex = i;
+                        break;
+                    }
+                }
+
+                if(startIndex !== -1) {
+                    const snapA = this.history[startIndex];
+                    const snapB = this.history[startIndex+1];
+                    
+                    // Calculate ratio (0.0 to 1.0) between snapshots
+                    const t = (this.time - snapA.time) / (snapB.time - snapA.time);
+                    
+                    // Map Agents for visual frame
+                    const tempAgents = [];
+                    snapA.agents.forEach(aStart => {
+                        const aEnd = snapB.agents.find(a => a.id === aStart.id);
+                        if(aEnd) {
+                            // Interpolate position
+                            const lerpX = aStart.x + (aEnd.x - aStart.x) * t;
+                            const lerpY = aStart.y + (aEnd.y - aStart.y) * t;
+                            
+                            // Create visual dummy agent
+                            const dummy = new Agent(aStart.type, lerpX, lerpY, aStart.health, aStart.id);
+                            dummy.dead = false; // ensure visible
+                            tempAgents.push(dummy);
+                        }
+                    });
+                    
+                    this.agents = tempAgents;
+                    // Sync environment sliders
+                    this.env = snapA.env; 
+                    this.syncSliders();
+                }
             }
         }
 
+        // --- DRAWING ---
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
         const r = this.env.pollution * 1.5;
@@ -589,8 +629,18 @@ class Simulation {
 
         this.agents.forEach(a => a.draw(this.ctx, this.viewMode));
 
-        if(this.selectedAgent && !this.selectedAgent.dead) {
-            ui.showTooltip(this.selectedAgent.x, this.selectedAgent.y, this.selectedAgent);
+        // Update selected agent if we are interpolating (find new object reference by ID)
+        if(this.selectedAgent) {
+            const freshRef = this.agents.find(a => a.id === this.selectedAgent.id);
+            if(freshRef) {
+                this.selectedAgent = freshRef; // update reference to moving dummy
+                ui.showTooltip(freshRef.x, freshRef.y, freshRef);
+            } else {
+                // Agent died or disappeared
+                this.selectedAgent = null;
+                ui.selectedMode = false;
+                ui.hideTooltip();
+            }
         }
 
         const track = document.getElementById('timeline-track');
