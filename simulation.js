@@ -5,18 +5,87 @@ const ui = {
     tooltip: document.getElementById('tooltip'),
     selectedMode: false,
     uiVisible: true,
+    statsDOM: {}, // Store references to the counter DOM elements
     
     init: () => {
         document.getElementById('menu-toggle').onclick = () => ui.sidebar.classList.add('open');
         document.getElementById('close-menu').onclick = () => ui.sidebar.classList.remove('open');
         
-        // Initialize Touch Drag System (For spawning items)
+        // Initialize Touch Drag System
         ui.setupTouchDrag();
+
+        // Initialize Stats Bar
+        ui.initStats();
+    },
+
+    // --- NEW STATS DASHBOARD ---
+    initStats: () => {
+        // Create the container
+        const bar = document.createElement('div');
+        bar.id = 'stats-bar';
+        Object.assign(bar.style, {
+            position: 'absolute',
+            top: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            gap: '15px',
+            background: 'rgba(15, 23, 42, 0.8)',
+            padding: '8px 20px',
+            borderRadius: '99px',
+            color: 'white',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            border: '1px solid rgba(56, 189, 248, 0.3)',
+            zIndex: '500',
+            pointerEvents: 'none', // Let clicks pass through
+            userSelect: 'none'
+        });
+
+        // Define types and icons
+        const types = [
+            { id: 'fish', icon: '🐟' },
+            { id: 'shark', icon: '🦈' },
+            { id: 'shrimp', icon: '🦐' },
+            { id: 'algae', icon: '🌿' },
+            { id: 'coral', icon: '🪸' },
+            { id: 'oil', icon: '🛢️' }
+        ];
+
+        types.forEach(t => {
+            const item = document.createElement('div');
+            item.innerHTML = `${t.icon} <span id="stat-${t.id}" style="color:#38bdf8">0</span>`;
+            bar.appendChild(item);
+            // Cache the reference for fast updates
+            ui.statsDOM[t.id] = item.querySelector('span');
+        });
+
+        document.body.appendChild(bar);
+    },
+
+    updateStats: (agents) => {
+        // Reset counts
+        const counts = { fish: 0, shark: 0, shrimp: 0, algae: 0, coral: 0, oil: 0 };
+        
+        // Tally up
+        for(let agent of agents) {
+            if(counts[agent.type] !== undefined) {
+                counts[agent.type]++;
+            }
+        }
+
+        // Update DOM
+        for (const [type, count] of Object.entries(counts)) {
+            if(ui.statsDOM[type]) {
+                ui.statsDOM[type].innerText = count;
+            }
+        }
     },
 
     toggleUI: () => {
         ui.uiVisible = !ui.uiVisible;
-        const els = [document.getElementById('sidebar'), document.getElementById('menu-toggle'), document.getElementById('timeline-container')];
+        const els = [document.getElementById('sidebar'), document.getElementById('menu-toggle'), document.getElementById('timeline-container'), document.getElementById('stats-bar')];
         els.forEach(el => {
             if(el) {
                 if(ui.uiVisible) el.classList.remove('ui-hidden');
@@ -162,6 +231,9 @@ class Agent {
         this.coralCooldown = 0; 
         this.lastCoral = null; 
         this.currentCoral = null; 
+
+        // Reproduction Timer
+        this.reproCooldown = 0;
         
         if(type === 'fish') { this.icon = '🐟'; this.size = 24; this.speed = 2; this.vision = 150; }
         else if (type === 'shark') { this.icon = '🦈'; this.size = 40; this.speed = 3.5; this.vision = 250; }
@@ -188,7 +260,8 @@ class Agent {
         return { agent: closest, dist: minDist };
     }
 
-    update(bounds, env, allAgents) {
+    update(bounds, env, allAgents, spawnCallback) {
+        // --- MOVEMENT & BEHAVIOR LOGIC ---
         if(this.type === 'fish') {
             this.health -= 0.01;
             if(env.pollution > 20) this.health -= 0.1;
@@ -269,6 +342,35 @@ class Agent {
                         prey.agent.dead = true;
                         this.health = Math.min(100, this.health + 20);
                     }
+                }
+            }
+        }
+
+        // --- REPRODUCTION LOGIC ---
+        // Conditions: Full Health (>95), Not Cooling Down, Find Mate nearby
+        if(this.reproCooldown > 0) {
+            this.reproCooldown--;
+        } else if (['fish', 'shark', 'shrimp'].includes(this.type) && this.health >= 80) {
+            const mateInfo = this.findNearest(allAgents, this.type);
+            
+            // Check if mate exists, is close enough to touch/interact, matches health criteria, and isn't on cooldown
+            if (mateInfo.agent && mateInfo.dist < this.size * 1.5 && mateInfo.agent.health >= 95 && mateInfo.agent.reproCooldown <= 0) {
+                
+                // 50% Chance
+                if(Math.random() < 0.5) {
+                    // Successful Reproduction
+                    if(spawnCallback) {
+                        spawnCallback(this.type, this.x, this.y);
+                    }
+                    // Reset Cooldowns for both parents to prevent infinite spawning
+                    this.reproCooldown = 400; 
+                    mateInfo.agent.reproCooldown = 400;
+                    
+                    // Small visual kick to separate them
+                    this.vx *= -1; this.vy *= -1;
+                } else {
+                    // Failed attempt, short cooldown to try again later
+                    this.reproCooldown = 50;
                 }
             }
         }
@@ -639,7 +741,14 @@ class Simulation {
                 if(Math.floor(this.time) > Math.floor(this.time - 0.05)) { this.recordState(); }
 
                 this.agents.forEach((a, i) => {
-                    a.update({width: this.canvas.width, height: this.canvas.height}, this.env, this.agents);
+                    // Pass spawn callback to update function
+                    a.update(
+                        {width: this.canvas.width, height: this.canvas.height}, 
+                        this.env, 
+                        this.agents,
+                        (type, x, y) => this.spawn(type, x, y)
+                    );
+
                     if(a.dead) {
                         if(this.selectedAgent === a) { this.selectedAgent = null; ui.selectedMode = false; ui.hideTooltip(); }
                         this.agents.splice(i, 1);
@@ -647,6 +756,9 @@ class Simulation {
                 });
                 const scrollArea = document.getElementById('timeline-scroll-area');
                 if(scrollArea) scrollArea.scrollLeft = scrollArea.scrollWidth;
+                
+                // Update the stats bar every frame (or you could throttle this)
+                ui.updateStats(this.agents);
             } 
             else {
                 this.time += 0.05;
