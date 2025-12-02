@@ -9,6 +9,9 @@ const ui = {
     init: () => {
         document.getElementById('menu-toggle').onclick = () => ui.sidebar.classList.add('open');
         document.getElementById('close-menu').onclick = () => ui.sidebar.classList.remove('open');
+        
+        // Initialize Touch Drag System
+        ui.setupTouchDrag();
     },
 
     toggleUI: () => {
@@ -85,6 +88,71 @@ const ui = {
             ui.sidebarLock.classList.add('hidden');
             document.getElementById('btn-go-live').classList.add('hidden');
         }
+    },
+
+    // --- TOUCH DRAG SUPPORT FOR MOBILE ---
+    setupTouchDrag: () => {
+        const draggables = document.querySelectorAll('.draggable-item');
+        let activeDrag = null;
+        let dragType = null;
+        let ghost = null;
+
+        draggables.forEach(item => {
+            // Extract type from onclick attribute just for safety, or we parse it manually
+            // We'll rely on the attribute we set below
+            const typeStr = item.getAttribute('ondragstart').match(/'([^']+)'/)[1];
+            
+            item.addEventListener('touchstart', (e) => {
+                // Prevent sidebar scrolling while dragging an item
+                // But allow scrolling if we aren't moving much? 
+                // Simple approach: Lock if moving sideways, but for now we just capture.
+                dragType = typeStr;
+                activeDrag = item;
+                
+                // Create visual ghost
+                ghost = item.cloneNode(true);
+                ghost.style.position = 'absolute';
+                ghost.style.opacity = '0.8';
+                ghost.style.pointerEvents = 'none';
+                ghost.style.zIndex = '1000';
+                ghost.style.width = item.offsetWidth + 'px';
+                ghost.style.background = '#1e293b';
+                ghost.style.border = '1px solid #38bdf8';
+                document.body.appendChild(ghost);
+
+                const touch = e.touches[0];
+                ghost.style.left = (touch.clientX - 20) + 'px';
+                ghost.style.top = (touch.clientY - 20) + 'px';
+            }, {passive: false});
+
+            item.addEventListener('touchmove', (e) => {
+                if(activeDrag && ghost) {
+                    e.preventDefault(); // Stop screen scrolling
+                    const touch = e.touches[0];
+                    ghost.style.left = (touch.clientX - 20) + 'px';
+                    ghost.style.top = (touch.clientY - 20) + 'px';
+                }
+            }, {passive: false});
+
+            item.addEventListener('touchend', (e) => {
+                if(activeDrag && ghost) {
+                    const touch = e.changedTouches[0];
+                    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                    
+                    // Check if dropped on Canvas
+                    if(target && target.id === 'simCanvas') {
+                        const rect = target.getBoundingClientRect();
+                        sim.spawn(dragType, touch.clientX - rect.left, touch.clientY - rect.top);
+                    }
+                    
+                    // Cleanup
+                    ghost.remove();
+                    ghost = null;
+                    activeDrag = null;
+                    dragType = null;
+                }
+            });
+        });
     }
 };
 
