@@ -37,7 +37,6 @@ body {
     font-size: 24px; padding: 8px 12px; 
     border-radius: var(--radius-md); 
     cursor: pointer; 
-    /* Smooth fade for opacity changes */
     transition: all 0.2s, opacity 0.3s;
     box-shadow: none !important;
     display: flex; align-items: center; justify-content: center;
@@ -49,9 +48,7 @@ body {
     background: rgba(15, 23, 42, 0.95); 
     z-index: 200; padding: 30px; 
     display: flex; flex-direction: column; 
-    /* Default Closed State */
     transform: translateX(-105%); 
-    /* Ensure opacity matches the slide speed */
     transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s; 
     border-right: 1px solid var(--glass-border); 
     box-sizing: border-box; 
@@ -61,7 +58,16 @@ body {
 
 /* SIDEBAR HEADER */
 .sidebar-header { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; position: relative; z-index: 301; }
-.sidebar-header h2 { font-weight: 800; letter-spacing: -0.5px; margin: 0; background: linear-gradient(to right, white, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.sidebar-header h2 { 
+    font-weight: 800; 
+    letter-spacing: -0.5px; 
+    margin: 0; 
+    background: linear-gradient(to right, white, #94a3b8); 
+    /* FIXED: Added standard property */
+    -webkit-background-clip: text; 
+    background-clip: text;
+    -webkit-text-fill-color: transparent; 
+}
 .close-btn { background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer; transition: 0.2s; box-shadow: none !important; pointer-events: auto; display:flex; align-items:center; }
 .close-btn:hover { color: white; transform: rotate(90deg); }
 
@@ -120,9 +126,19 @@ body {
 .control-group label i { font-size: 16px; margin-right: 8px; color: var(--accent); }
 .control-group label span { color: var(--accent); }
 
-input[type="range"] { -webkit-appearance: none; width: 100%; background: transparent; cursor: pointer; }
+input[type="range"] { 
+    /* FIXED: Added standard property */
+    -webkit-appearance: none; 
+    appearance: none; 
+    width: 100%; background: transparent; cursor: pointer; 
+}
 input[type="range"]::-webkit-slider-runnable-track { width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 10px; box-shadow: none !important; }
-input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: white; margin-top: -6px; transition: transform 0.1s; box-shadow: none !important; }
+input[type="range"]::-webkit-slider-thumb { 
+    /* FIXED: Added standard property */
+    -webkit-appearance: none; 
+    appearance: none;
+    height: 18px; width: 18px; border-radius: 50%; background: white; margin-top: -6px; transition: transform 0.1s; box-shadow: none !important; 
+}
 input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
 
 .divider { border: 0; border-top: 1px solid var(--glass-border); margin: 25px 0; }
@@ -161,7 +177,7 @@ canvas { display: block; width: 100%; height: 100%; }
     background: var(--glass-surface); backdrop-filter: blur(10px);
     padding: 8px 12px; border-radius: 50px; border: 1px solid var(--glass-border);
     pointer-events: none; box-shadow: none !important;
-    transition: opacity 0.3s; /* Smooth fade */
+    transition: opacity 0.3s;
 }
 
 .icon-btn { pointer-events: auto; background: rgba(255,255,255,0.05); border: 1px solid transparent; color: white; padding: 8px 16px; border-radius: 30px; cursor: pointer; font-size: 18px; font-weight: 500; transition: 0.2s; box-shadow: none !important; display: flex; align-items: center; }
@@ -175,7 +191,7 @@ canvas { display: block; width: 100%; height: 100%; }
     pointer-events: none; 
     z-index: 10; 
     display: flex; align-items: flex-end; padding: 0 10px;
-    transition: opacity 0.3s; /* Just fade, don't move */
+    transition: opacity 0.3s, transform 0.3s;
 }
 
 .timeline-container::before {
@@ -256,8 +272,6 @@ canvas { display: block; width: 100%; height: 100%; }
 .t-marker:hover::before { opacity: 1; bottom: 32px; }
 
 /* --- TOASTS & TOOLTIPS --- */
-
-/* FIX: Removed 'transform: translateY(-10px)' to prevent Sidebar ghosting */
 .ui-hidden { opacity: 0; pointer-events: none; }
 
 #toast-container { position: absolute; top: 90px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 10px; pointer-events: none; z-index: 1000; }
