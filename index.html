@@ -27,7 +27,7 @@
             </button>
         </div>
 
-        <div class="sidebar-body">
+        <div class="content-wrapper">
             
             <div id="sidebar-lock" class="sidebar-lock hidden">
                 <div class="lock-msg">
@@ -35,50 +35,54 @@
                     <strong>REPLAYING</strong><br>
                     <small>Go Live to Edit</small>
                 </div>
+                <button id="btn-go-live" class="live-btn hidden" onclick="sim.goLive()">
+                    <i class="ph ph-broadcast"></i> GO LIVE
+                </button>
             </div>
 
-            <div id="tab-environment" class="tab-content active-content">
-                <div class="control-group">
-                    <label><i class="ph ph-thermometer"></i> Temperature <span id="val-temp">25°C</span></label>
-                    <input type="range" id="slider-temp" min="15" max="35" value="25">
-                </div>
-                <div class="control-group">
-                    <label><i class="ph ph-drop"></i> Pollution <span id="val-pol">0%</span></label>
-                    <input type="range" id="slider-pol" min="0" max="100" value="0">
-                </div>
-                <hr class="divider">
-                <label style="font-size:12px; color:#94a3b8; font-weight:600; margin-bottom:10px; display:block;">VISUALIZATION</label>
-                <div class="view-toggles">
-                    <button class="btn-sm active" id="view-std" onclick="sim.toggleView('standard')">Standard</button>
-                    <button class="btn-sm" id="view-heat" onclick="sim.toggleView('heatmap')">Heatmap</button>
-                </div>
-            </div>
-
-            <div id="tab-species" class="tab-content">
-                <p class="hint">Click or Drag to spawn</p>
-                
-                <div class="draggable-item" draggable="true" ondragstart="ui.drag(event, 'fish')" onclick="ui.clickSpawn('fish')">
-                    <i class="ph ph-fish-simple icon"></i> <span>Small Fish</span>
-                </div>
-                
-                <div class="draggable-item" draggable="true" ondragstart="ui.drag(event, 'shark')" onclick="ui.clickSpawn('shark')">
-                    <i class="ph ph-sword icon"></i> <span>Predator</span>
-                </div>
-                
-                <div class="draggable-item" draggable="true" ondragstart="ui.drag(event, 'coral')" onclick="ui.clickSpawn('coral')">
-                    <i class="ph ph-circle-dashed icon"></i> <span>Coral</span>
+            <div class="sidebar-body">
+                <div id="tab-environment" class="tab-content active-content">
+                    <div class="control-group">
+                        <label><i class="ph ph-thermometer"></i> Temperature <span id="val-temp">25°C</span></label>
+                        <input type="range" id="slider-temp" min="15" max="35" value="25">
+                    </div>
+                    <div class="control-group">
+                        <label><i class="ph ph-drop"></i> Pollution <span id="val-pol">0%</span></label>
+                        <input type="range" id="slider-pol" min="0" max="100" value="0">
+                    </div>
+                    <hr class="divider">
+                    <label style="font-size:12px; color:#94a3b8; font-weight:600; margin-bottom:10px; display:block;">VISUALIZATION</label>
+                    <div class="view-toggles">
+                        <button class="btn-sm active" id="view-std" onclick="sim.toggleView('standard')">Standard</button>
+                        <button class="btn-sm" id="view-heat" onclick="sim.toggleView('heatmap')">Heatmap</button>
+                    </div>
                 </div>
 
-                <div class="draggable-item" draggable="true" ondragstart="ui.drag(event, 'shrimp')" onclick="ui.clickSpawn('shrimp')">
-                    <i class="ph ph-shrimp icon"></i> <span>Shrimp</span>
-                </div>
-                
-                <div class="draggable-item" draggable="true" ondragstart="ui.drag(event, 'algae')" onclick="ui.clickSpawn('algae')">
-                    <i class="ph ph-plant icon"></i> <span>Algae</span>
+                <div id="tab-species" class="tab-content">
+                    <p class="hint">Click or Drag to spawn</p>
+                    
+                    <div class="draggable-item" draggable="true" ondragstart="ui.drag(event, 'fish')" onclick="ui.clickSpawn('fish')">
+                        <i class="ph ph-fish-simple icon"></i> <span>Small Fish</span>
+                    </div>
+                    
+                    <div class="draggable-item" draggable="true" ondragstart="ui.drag(event, 'shark')" onclick="ui.clickSpawn('shark')">
+                        <i class="ph ph-sword icon"></i> <span>Predator</span>
+                    </div>
+                    
+                    <div class="draggable-item" draggable="true" ondragstart="ui.drag(event, 'coral')" onclick="ui.clickSpawn('coral')">
+                        <i class="ph ph-circle-dashed icon"></i> <span>Coral</span>
+                    </div>
+
+                    <div class="draggable-item" draggable="true" ondragstart="ui.drag(event, 'shrimp')" onclick="ui.clickSpawn('shrimp')">
+                        <i class="ph ph-shrimp icon"></i> <span>Shrimp</span>
+                    </div>
+                    
+                    <div class="draggable-item" draggable="true" ondragstart="ui.drag(event, 'algae')" onclick="ui.clickSpawn('algae')">
+                        <i class="ph ph-plant icon"></i> <span>Algae</span>
+                    </div>
                 </div>
             </div>
         </div>
-
         <div class="sidebar-footer">
             <button class="btn-reset" onclick="location.reload()"><i class="ph ph-arrow-counter-clockwise"></i> RESET SIMULATION</button>
         </div>
@@ -86,22 +90,16 @@
 
     <main class="viewport">
         <div id="toast-container"></div>
-
         <div id="tooltip" class="tooltip hidden">
             <strong id="tt-type">Type</strong>
             <div id="tt-health">Health: 100%</div>
         </div>
-
         <div class="top-bar">
             <button id="ui-btn" class="icon-btn" onclick="ui.toggleUI()" title="Toggle UI"><i class="ph ph-eye"></i></button>
-            <button id="btn-go-live" class="live-btn hidden" onclick="sim.goLive()"><i class="ph ph-broadcast"></i> GO LIVE</button>
         </div>
-
         <canvas id="simCanvas"></canvas>
-
         <div id="timeline-container" class="timeline-container">
             <button id="btn-play" class="play-btn" onclick="sim.togglePlay()"><i class="ph ph-pause"></i></button>
-            
             <div id="timeline-scroll-area" class="timeline-scroll-area">
                 <div class="timeline-content-wrapper">
                     <div id="timeline-track" class="timeline-track">
