@@ -35,8 +35,13 @@
                     <strong>REPLAYING</strong><br>
                     <small>Go Live to Edit</small>
                 </div>
+                
                 <button id="btn-go-live" class="live-btn hidden" onclick="sim.goLive()">
                     <i class="ph ph-broadcast"></i> GO LIVE
+                </button>
+
+                <button id="btn-restart" class="restart-btn hidden" onclick="ui.openRestartModal()">
+                    <i class="ph ph-arrows-clockwise"></i> RESTART FROM HERE
                 </button>
             </div>
 
@@ -83,6 +88,7 @@
                 </div>
             </div>
         </div>
+
         <div class="sidebar-footer">
             <button class="btn-reset" onclick="location.reload()"><i class="ph ph-arrow-counter-clockwise"></i> RESET SIMULATION</button>
         </div>
@@ -90,16 +96,21 @@
 
     <main class="viewport">
         <div id="toast-container"></div>
+
         <div id="tooltip" class="tooltip hidden">
             <strong id="tt-type">Type</strong>
             <div id="tt-health">Health: 100%</div>
         </div>
+
         <div class="top-bar">
             <button id="ui-btn" class="icon-btn" onclick="ui.toggleUI()" title="Toggle UI"><i class="ph ph-eye"></i></button>
         </div>
+
         <canvas id="simCanvas"></canvas>
+
         <div id="timeline-container" class="timeline-container">
             <button id="btn-play" class="play-btn" onclick="sim.togglePlay()"><i class="ph ph-pause"></i></button>
+            
             <div id="timeline-scroll-area" class="timeline-scroll-area">
                 <div class="timeline-content-wrapper">
                     <div id="timeline-track" class="timeline-track">
@@ -111,6 +122,19 @@
             </div>
         </div>
     </main>
+
+    <div id="modal-restart" class="modal-overlay hidden">
+        <div class="modal-box">
+            <div class="modal-icon"><i class="ph ph-clock-clockwise"></i></div>
+            <h3>Resume Simulation?</h3>
+            <p>You are about to jump back in and take control from this point.</p>
+            <p class="warning-text" style="font-weight:normal; opacity:0.8">Any events that happened <em>after</em> this moment will be overwritten.</p>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="ui.closeRestartModal()">Cancel</button>
+                <button class="btn-confirm" onclick="ui.confirmRestart()">Yes, Resume Here</button>
+            </div>
+        </div>
+    </div>
 
     <script src="ui.js"></script>
     <script src="agent.js"></script>

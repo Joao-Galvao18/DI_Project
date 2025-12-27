@@ -1,8 +1,9 @@
-/* --- UI CONTROLLER --- */
+/* --- UI CONTROLLER (UPDATED) --- */
 const ui = {
     sidebar: document.getElementById('sidebar'),
     sidebarLock: document.getElementById('sidebar-lock'),
     tooltip: document.getElementById('tooltip'),
+    modal: document.getElementById('modal-restart'),
     selectedMode: false,
     uiVisible: true,
     statsDOM: {}, 
@@ -19,6 +20,19 @@ const ui = {
         ui.initStats();
     },
 
+    // --- MODAL LOGIC ---
+    openRestartModal: () => {
+        ui.modal.classList.remove('hidden');
+    },
+    closeRestartModal: () => {
+        ui.modal.classList.add('hidden');
+    },
+    confirmRestart: () => {
+        sim.rewriteHistory();
+        ui.closeRestartModal();
+    },
+
+    // --- EXISTING LOGIC ---
     injectRockButton: () => {
         const container = document.getElementById('tab-species');
         if(!container) return;
@@ -145,12 +159,16 @@ const ui = {
 
     setReviewMode: (isReviewing) => {
         const goLive = document.getElementById('btn-go-live');
+        const restart = document.getElementById('btn-restart');
+        
         if(isReviewing) {
             ui.sidebarLock.classList.remove('hidden');
             if(goLive) goLive.classList.remove('hidden');
+            if(restart) restart.classList.remove('hidden');
         } else {
             ui.sidebarLock.classList.add('hidden');
             if(goLive) goLive.classList.add('hidden');
+            if(restart) restart.classList.add('hidden');
         }
     },
 

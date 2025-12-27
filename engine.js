@@ -1,4 +1,4 @@
-/* --- SIMULATION ENGINE --- */
+/* --- SIMULATION ENGINE (FINAL POLISH) --- */
 class Simulation {
     constructor() {
         this.canvas = document.getElementById('simCanvas');
@@ -9,7 +9,7 @@ class Simulation {
         this.bgCtx = this.bgCanvas.getContext('2d');
         
         this.agents = [];
-        this.terrainModifiers = []; // Stores rocks as data points that alter terrain
+        this.terrainModifiers = []; 
         this.env = { temp: 25, pollution: 0 };
         this.viewMode = 'standard';
         this.isPlaying = true;
@@ -46,9 +46,8 @@ class Simulation {
         if(timelineContainer) this.pxPerUnit = timelineContainer.clientWidth / 100;
     }
 
-    // --- PROCEDURAL HEIGHT CALCULATOR (PROPORTIONAL TO ROCK SIZE) ---
+    // --- PROCEDURAL HEIGHT CALCULATOR ---
     getGlobalHeight(x, y) {
-        // 1. Base Noise
         const scale = 300;
         const nx = x + this.mapOffsetX;
         const ny = y + this.mapOffsetY;
@@ -57,23 +56,15 @@ class Simulation {
         const v3 = Math.cos((nx-ny)/(scale*2)) * 0.3;
         let h = (v1 + v2 + v3 + 2) / 4; 
 
-        // 2. Add Terrain Modifiers (Rocks act as mountains)
         for (let mod of this.terrainModifiers) {
             const dx = x - mod.x;
             const dy = y - mod.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
-            
-            // Influence radius is proportional to rock size
             const radius = mod.size * 3.0; 
             
             if (dist < radius) {
-                // Cosine curve for smooth topographical blending
                 const norm = dist / radius; 
-                
-                // Height impact is proportional to rock size.
                 const heightImpact = mod.size / 160; 
-                
-                // height additive (max at center, 0 at edge)
                 const bump = (Math.cos(norm * Math.PI) + 1) / 2 * heightImpact; 
                 h += bump;
             }
@@ -89,14 +80,12 @@ class Simulation {
         
         ctx.clearRect(0, 0, w, h);
 
-        // 1. Base Water Layer
         const gradient = ctx.createLinearGradient(0, 0, 0, h);
         gradient.addColorStop(0, '#020617'); 
         gradient.addColorStop(1, '#0f172a');
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, w, h);
 
-        // 2. Render Blobs based on getGlobalHeight
         ctx.save();
         ctx.filter = 'blur(20px)';
         
@@ -104,15 +93,12 @@ class Simulation {
         for(let y = 0; y < h; y += step) {
             for(let x = 0; x < w; x += step) {
                 const val = this.getGlobalHeight(x, y);
-                
-                // Deep Ridge
                 if(val > 0.6) {
                     ctx.fillStyle = `rgba(30, 58, 138, ${val - 0.5})`; 
                     ctx.beginPath();
                     ctx.arc(x, y, step * 1.5, 0, Math.PI*2);
                     ctx.fill();
                 }
-                // Shallow / Land
                 if(val > 0.8) {
                     ctx.fillStyle = `rgba(56, 189, 248, 0.25)`; 
                     ctx.beginPath();
@@ -123,16 +109,12 @@ class Simulation {
         }
         ctx.restore();
 
-        // 3. Render Contour Lines (Isolines)
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'rgba(255,255,255,0.08)';
         ctx.beginPath();
-        
-        // A bit coarser step for lines to save CPU
         for(let y = 0; y < h; y += 8) {
             for(let x = 0; x < w; x += 8) {
                 const val = this.getGlobalHeight(x, y);
-                // Draw lines at specific heights
                 if(Math.abs(val - 0.65) < 0.02 || Math.abs(val - 0.8) < 0.02) {
                     ctx.moveTo(x, y);
                     ctx.lineTo(x+2, y+2);
@@ -150,7 +132,6 @@ class Simulation {
         const snapshot = {
             time: this.time,
             env: { ...this.env },
-            // Record Angle and Velocity to prevent spinning on rewind
             agents: this.agents.map(a => ({ 
                 id: a.id, type: a.type, x: a.x, y: a.y, 
                 vx: a.vx, vy: a.vy, angle: a.angle, 
@@ -167,17 +148,54 @@ class Simulation {
         this.markers.push({ time: time, dom: dom });
     }
 
+    // --- REWRITE HISTORY ---
+    rewriteHistory() {
+        // Find index to cut
+        let cutIndex = -1;
+        for(let i=0; i<this.history.length; i++) {
+            if(this.history[i].time >= this.time) {
+                cutIndex = i;
+                break;
+            }
+        }
+
+        if(cutIndex !== -1) {
+            // Remove future history
+            this.history = this.history.slice(0, cutIndex);
+            
+            // Also remove markers that are in the future
+            this.markers = this.markers.filter(m => {
+                if(m.time > this.time) {
+                    m.dom.remove();
+                    return false;
+                }
+                return true;
+            });
+        }
+        
+        // Push current state as the new head
+        this.recordState(); 
+        
+        this.liveHead = this.time;
+        this.isReviewing = false;
+        this.isPlaying = true;
+        
+        ui.setReviewMode(false);
+        // UPDATED MESSAGE: Friendlier
+        ui.showToast("You are Live! 🔴 New path started.");
+        
+        const btn = document.getElementById('btn-play');
+        if(btn) btn.innerHTML = '<i class="ph ph-pause"></i>';
+    }
+
     spawn(type, x, y) {
         if(this.isReviewing) { ui.showToast("Cannot edit past! Go Live first.", "alert"); return; }
         
         const agent = new Agent(type, x, y);
         this.agents.push(agent);
         
-        // --- DYNAMIC TERRAIN UPDATE ---
         if(type === 'rock') {
-            // 1. Add rock to topological data
             this.terrainModifiers.push({ x: x, y: y, size: agent.size });
-            // 2. Re-render the map to show new contours/depths
             this.renderMap();
         }
         
@@ -193,7 +211,7 @@ class Simulation {
 
     initWorld() {
         this.agents = [];
-        this.terrainModifiers = []; // Reset terrain
+        this.terrainModifiers = []; 
         this.time = 0; 
         this.liveHead = 0;
         this.history = [];
@@ -207,30 +225,24 @@ class Simulation {
         this.mapOffsetX = Math.random() * 10000;
         this.mapOffsetY = Math.random() * 10000;
         
-        // Generate Base Map
         this.renderMap();
 
         this.env.temp = 25; this.env.pollution = 0;
         
-        // Default Agents
         for(let i=0; i<2; i++) this.agents.push(new Agent('shark', Math.random()*w, Math.random()*h));
         for(let i=0; i<15; i++) this.agents.push(new Agent('fish', Math.random()*w, Math.random()*h));
-        for(let i=0; i<5; i++) this.agents.push(new Agent('shrimp', Math.random()*w, Math.random()*h));
-        for(let i=0; i<20; i++) this.agents.push(new Agent('algae', Math.random()*w, Math.random()*h));
+        for(let i=0; i<8; i++) this.agents.push(new Agent('shrimp', Math.random()*w, Math.random()*h));
+        for(let i=0; i<25; i++) this.agents.push(new Agent('algae', Math.random()*w, Math.random()*h));
         for(let i=0; i<5; i++) this.agents.push(new Agent('coral', Math.random()*w, Math.random()*h));
 
-        // Spawn Rocks and UPDATE TERRAIN for each
         for(let i=0; i<8; i++) {
             const rx = Math.random() * w;
             const ry = Math.random() * h;
-            // Create agent
             const rock = new Agent('rock', rx, ry);
             this.agents.push(rock);
-            // Add to terrain data
             this.terrainModifiers.push({ x: rx, y: ry, size: rock.size });
         }
         
-        // Final render after initial rocks
         this.renderMap();
         
         this.syncSliders();
@@ -308,10 +320,9 @@ class Simulation {
             this.agents = last.agents.map(d => {
                 const a = new Agent(d.type, d.x, d.y, d.health, d.id);
                 if(d.size) a.size = d.size;
-                if(d.subShapes) a.subShapes = d.subShapes; // Restore organic shapes
-                if(d.poly) a.poly = d.poly; // Restore rock shape
+                if(d.subShapes) a.subShapes = d.subShapes; 
+                if(d.poly) a.poly = d.poly; 
                 
-                // Restore velocity and angle from history
                 a.vx = d.vx;
                 a.vy = d.vy;
                 a.angle = d.angle;
@@ -445,18 +456,15 @@ class Simulation {
                     const dummy = new Agent(aStart.type, lerpX, lerpY, aStart.health, aStart.id);
                     if(aStart.size) dummy.size = aStart.size;
                     
-                    // Restore organic data
                     if(aStart.subShapes) dummy.subShapes = aStart.subShapes;
                     if(aStart.poly) dummy.poly = aStart.poly;
                     
-                    // Interpolate Velocity and Angle to prevent spinning
                     dummy.vx = aStart.vx + (aEnd.vx - aStart.vx) * t;
                     dummy.vy = aStart.vy + (aEnd.vy - aStart.vy) * t;
                     
                     if (Math.abs(dummy.vx) > 0.01 || Math.abs(dummy.vy) > 0.01) {
                         dummy.angle = Math.atan2(dummy.vy, dummy.vx);
                     } else {
-                        // If speed is near zero, use the last recorded angle
                         dummy.angle = aStart.angle; 
                     }
 
@@ -473,20 +481,16 @@ class Simulation {
     loop() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // DRAW THE PROCEDURALLY GENERATED MAP
         this.ctx.drawImage(this.bgCanvas, 0, 0);
 
-        // --- DYNAMIC COLOR OVERLAYS ---
         this.ctx.save();
         
-        // Temperature Overlay
         if(this.env.temp > 25) {
             const heat = (this.env.temp - 25) / 10; 
             this.ctx.fillStyle = `rgba(255, 50, 20, ${heat * 0.4})`;
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         }
 
-        // Pollution Overlay
         if(this.env.pollution > 0) {
             const tox = this.env.pollution / 100;
             this.ctx.fillStyle = `rgba(100, 0, 150, ${tox * 0.6})`;
@@ -497,11 +501,14 @@ class Simulation {
 
         if(this.isPlaying) {
             if(!this.isReviewing) {
-                this.time += 0.05; 
-                if(this.env.temp < 28 && this.env.pollution < 40 && Math.random() < 0.01) {
+                this.time += 0.08; 
+                
+                // FIXED: Spawn rate lowered to 0.025 (less clutter)
+                if(this.env.temp < 28 && this.env.pollution < 40 && Math.random() < 0.025) {
                     this.agents.push(new Agent('algae', Math.random()*this.canvas.width, Math.random()*this.canvas.height));
                 }
-                if(Math.floor(this.time) > Math.floor(this.time - 0.05)) { this.recordState(); }
+                
+                if(Math.floor(this.time) > Math.floor(this.time - 0.08)) { this.recordState(); }
 
                 this.agents.forEach((a, i) => {
                     a.update(
@@ -522,7 +529,7 @@ class Simulation {
                 ui.updateStats(this.agents);
             } 
             else {
-                this.time += 0.05;
+                this.time += 0.08;
                 if(this.time >= this.liveHead) { this.goLive(); }
             }
         }
